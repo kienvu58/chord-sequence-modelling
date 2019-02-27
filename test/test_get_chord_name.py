@@ -62,8 +62,39 @@ import pytest
 def test_get_chord_name_with_first_three_args(global_key, local_key, numeral, expected):
     assert get_chord_name(global_key, local_key, numeral) == expected
 
+@pytest.mark.parametrize("global_key,local_key,numeral,relativeroot,expected", [
+    ("Eb", "I", "Ger", "iii", "gGer6"),
+    ("F", "i", "Ger", None, "fGer6"),
+    ("G", "IV", "It", None, "CIt6"),
+    ("C", "i", "Fr", None, "cFr6"),
+])
+def test_get_chord_name_with_special_chord(global_key, local_key, numeral, relativeroot, expected):
+    assert get_chord_name(global_key, local_key, numeral, relativeroot=relativeroot) == expected
 
-# def test_get_chord_name_with_special_augmented_sixth_chord():
-#     # Ger6, It6, Fr6
-#     pass
 
+@pytest.mark.parametrize("global_key,local_key,numeral,relativeroot,expected", [
+    ("Bb", "I", "V", "V", "C"),
+    ("Bb", "I", "V", "IV", "Bb"),
+    ("Bb", "I", "V", "ii", "G"),
+    ("Bb", "I", "V", "vi", "D"),
+    ("G", "IV", "V", "iii", "B"),
+    ("Eb", "I", "vii", "IV", "g"),
+    ("Eb", "I", "#vii", "vi", "b"),
+])
+def test_get_chord_name_with_relativeroot(global_key, local_key, numeral, relativeroot, expected):
+    assert get_chord_name(global_key, local_key, numeral, relativeroot=relativeroot) == expected
+
+
+@pytest.mark.parametrize("global_key,local_key,numeral,form,figbass,expected", [
+    ("C", "I", "I", "M", "7", "CM7"),
+    ("C", "I", "I", "M", "43", "CM43"),
+    ("C", "I", "I", "M", "2", "CM2"),
+    ("C", "I", "vii", "o", "65", "bo65"),
+    ("C", "I", "vii", "o", "6", "bo6"),
+    ("C", "I", "I", "+", "64", "C+64"),
+    ("C", "I", "I", "+", None, "C+"),
+    ("C", "I", "vii", "%", "7", "b%7"),
+    ("C", "I", "V", None, "7", "G7"),
+])
+def test_get_chord_name_with_form_and_figbass(global_key, local_key, numeral, form, figbass, expected):
+    assert get_chord_name(global_key, local_key, numeral, form=form, figbass=figbass) == expected

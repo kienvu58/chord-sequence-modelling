@@ -18,7 +18,6 @@ def is_key_with_sharp(key):
     return with_sharp
 
 def parse_numeral(numeral):
-    #TODO Ger, It, Fr
     accidental = numeral.count("#") - numeral.count("b")
 
     numeral = numeral.replace("#", "")
@@ -33,8 +32,6 @@ def parse_numeral(numeral):
 
 
 def get_chord_name_from_key_and_numeral(key, numeral):
-    #TODO Ger, It, Fr
-    #TODO diminish
     chromatic_scale_with_sharp = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     chromatic_scale_with_flat  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
@@ -65,15 +62,32 @@ def get_chord_name_from_key_and_numeral(key, numeral):
 
     return chord_name
 
-def get_chord_name(global_key, local_key, numeral):
+def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, relativeroot=None):
     # mode_list = ["maj", "min"]
     # root_list = ["Cb", "C", "C#", "Db", "D", "D#", "Eb", "E", "E#", "Fb", "F", "F#",
     #              "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B", "B#"]
     # form_list = ["M", "%", "o", "+"]
     # figbass_list = ["6", "64", "7", "65", "43", "2"]
 
-    local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
-    chord_name = get_chord_name_from_key_and_numeral(local_key_name, numeral)
+    if numeral not in ["Ger", "It", "Fr"]:
+        local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
+        if relativeroot is not None:
+            relativeroot_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
+            chord_name = get_chord_name_from_key_and_numeral(relativeroot_name, numeral)
+        else:
+            chord_name = get_chord_name_from_key_and_numeral(local_key_name, numeral)
+
+        if form is not None:
+            chord_name += form
+        
+        if figbass is not None:
+            chord_name += figbass
+    else:
+        local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
+        if relativeroot is not None:
+            local_key_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
+
+        chord_name = local_key_name + numeral + "6"
 
     return chord_name
 

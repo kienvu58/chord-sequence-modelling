@@ -58,6 +58,9 @@ import pytest
     ("g#", "i", "i", "g#"),
     ("g#", "i", "V", "D#"),
     ("g#", "i", "bII", "A"),
+
+    ("Eb", "bVI", "I", "Cb"),
+    ("Eb", "bVI", "ii", "db"),
 ])
 def test_get_chord_name_with_first_three_args(global_key, local_key, numeral, expected):
     assert get_chord_name(global_key, local_key, numeral) == expected

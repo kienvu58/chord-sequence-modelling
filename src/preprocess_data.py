@@ -35,18 +35,31 @@ def get_chord_name_from_key_and_numeral(key, numeral):
     chromatic_scale_with_sharp = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     chromatic_scale_with_flat  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
+    chromatic_scale_with_enharmonic_sharp = ["B#", "C#", "D", "D#", "E", "E#", "F#", "G", "G#", "A", "A#", "B"]
+    chromatic_scale_with_enharmonic_flat  = ["C", "Db", "D", "Eb", "Fb", "F", "Gb", "G", "Ab", "A", "Bb", "Cb"]
+
     major_scale = [0, 2, 4, 5, 7, 9, 11]
     minor_scale = [0, 2, 3, 5, 7, 8, 10]
 
     minor_mode = (key == key.lower())
-    with_sharp = is_key_with_sharp(key)
-
     diatonic_scale = minor_scale if minor_mode else major_scale
-    chromatic_scale = chromatic_scale_with_sharp if with_sharp else chromatic_scale_with_flat
+
+    with_sharp = is_key_with_sharp(key)
+    key_lower = key.lower()
+    if with_sharp:
+        if key_lower in ["b#", "e#"]:
+            chromatic_scale = chromatic_scale_with_enharmonic_sharp
+        else:
+            chromatic_scale = chromatic_scale_with_sharp
+    else:
+        if key_lower in ["cb", "fb"]:
+            chromatic_scale = chromatic_scale_with_enharmonic_flat
+        else:
+            chromatic_scale = chromatic_scale_with_flat
     chromatic_scale_lower = [note.lower() for note in chromatic_scale]
 
     scale_degree, accidental, major_quality = parse_numeral(numeral)
-    key_position = chromatic_scale_lower.index(key.lower())
+    key_position = chromatic_scale_lower.index(key_lower)
     chord_position = (key_position + diatonic_scale[scale_degree-1]) % 12
     chord_name = chromatic_scale[chord_position]
 

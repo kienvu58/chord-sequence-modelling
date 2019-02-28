@@ -1,3 +1,6 @@
+import re
+
+
 def is_key_with_sharp(key):
     key_with_sharp_list = ["A", "B", "C", "D", "E", "G", "a", "b", "e"]
     key_with_flat_list = ["F", "c", "d", "f", "g"]
@@ -17,6 +20,7 @@ def is_key_with_sharp(key):
             raise ValueError("Not supported key {}".format(key))
     return with_sharp
 
+
 def parse_numeral(numeral):
     accidental = numeral.count("#") - numeral.count("b")
 
@@ -32,11 +36,15 @@ def parse_numeral(numeral):
 
 
 def get_chord_name_from_key_and_numeral(key, numeral):
-    chromatic_scale_with_sharp = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-    chromatic_scale_with_flat  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+    chromatic_scale_with_sharp = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    chromatic_scale_with_flat = ["C", "Db", "D",
+                                 "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
-    chromatic_scale_with_enharmonic_sharp = ["B#", "C#", "D", "D#", "E", "E#", "F#", "G", "G#", "A", "A#", "B"]
-    chromatic_scale_with_enharmonic_flat  = ["C", "Db", "D", "Eb", "Fb", "F", "Gb", "G", "Ab", "A", "Bb", "Cb"]
+    chromatic_scale_with_enharmonic_sharp = [
+        "B#", "C#", "D", "D#", "E", "E#", "F#", "G", "G#", "A", "A#", "B"]
+    chromatic_scale_with_enharmonic_flat = [
+        "C", "Db", "D", "Eb", "Fb", "F", "Gb", "G", "Ab", "A", "Bb", "Cb"]
 
     major_scale = [0, 2, 4, 5, 7, 9, 11]
     minor_scale = [0, 2, 3, 5, 7, 8, 10]
@@ -75,6 +83,7 @@ def get_chord_name_from_key_and_numeral(key, numeral):
 
     return chord_name
 
+
 def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, relativeroot=None):
     # mode_list = ["maj", "min"]
     # root_list = ["Cb", "C", "C#", "Db", "D", "D#", "Eb", "E", "E#", "Fb", "F", "F#",
@@ -83,25 +92,109 @@ def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, rela
     # figbass_list = ["6", "64", "7", "65", "43", "2"]
 
     if numeral not in ["Ger", "It", "Fr"]:
-        local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
+        local_key_name = get_chord_name_from_key_and_numeral(
+            global_key, local_key)
         if relativeroot is not None:
-            relativeroot_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
-            chord_name = get_chord_name_from_key_and_numeral(relativeroot_name, numeral)
+            relativeroot_name = get_chord_name_from_key_and_numeral(
+                local_key_name, relativeroot)
+            chord_name = get_chord_name_from_key_and_numeral(
+                relativeroot_name, numeral)
         else:
-            chord_name = get_chord_name_from_key_and_numeral(local_key_name, numeral)
+            chord_name = get_chord_name_from_key_and_numeral(
+                local_key_name, numeral)
 
         if form is not None:
             chord_name += form
-        
+
         if figbass is not None:
             chord_name += figbass
     else:
-        local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
+        local_key_name = get_chord_name_from_key_and_numeral(
+            global_key, local_key)
         if relativeroot is not None:
-            local_key_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
+            local_key_name = get_chord_name_from_key_and_numeral(
+                local_key_name, relativeroot)
 
         chord_name = local_key_name + numeral + "6"
 
     return chord_name
 
 
+def parse_chord_name(chord_name):
+    """
+    form_name_list = [
+        "major triad",
+        "minor triad",
+        "diminished triad",
+        "augmented triad",
+
+        "major seventh",
+        "minor seventh",
+        "dominant seventh",
+        "diminished seventh",
+        "half-diminised seventh",
+        "augmented seventh",
+
+        "German sixth",
+        "Italian sixth",
+        "French sixth",
+    ]
+    """
+
+    figbass_name_list = [
+        "root",
+        "first",
+        "second",
+        "third",
+    ]
+
+    seventh_figbass_list = ["7", "65", "43", "2"]
+    triad_figbass_list = [None, "6", "64"]
+
+    pattern = re.compile(r"""(?P<key>[a-gA-G](b|\#)?)
+                             (?P<form>([%o+M]|Ger6|It6|Fr6))?
+                             (?P<figbass>(7|65|43|2|64|6))?
+                            """, re.VERBOSE)
+
+    match = pattern.match(chord_name)
+    key = match.group("key")
+    form = match.group("form")
+    figbass = match.group("figbass")
+
+    key_is_lowercase = (key == key.lower())
+
+    if form == "Ger6":
+        return key, "German sixth", figbass_name_list[0]
+    elif form == "It6":
+        return key, "Italian sixth", figbass_name_list[0]
+    elif form == "Fr6":
+        return key, "French sixth", figbass_name_list[0]
+    else:
+        if figbass in seventh_figbass_list:
+            if form == "%":
+                form_name = "half-diminished seventh"
+            elif form == "o":
+                form_name = "diminished seventh"
+            elif form == "M":
+                form_name = "major seventh"
+            elif form == "+":
+                form_name = "augmented seventh"
+            elif key_is_lowercase:
+                form_name = "minor seventh"
+            else:
+                form_name = "dominant seventh"
+            figbass_name = figbass_name_list[seventh_figbass_list.index(
+                figbass)]
+        else:
+            if form == "o":
+                form_name = "diminished triad"
+            elif form == "+":
+                form_name = "augmented triad"
+            elif key_is_lowercase:
+                form_name = "minor triad"
+            else:
+                form_name = "major triad"
+            figbass_name = figbass_name_list[triad_figbass_list.index(
+                figbass)]
+
+    return key, form_name, figbass_name

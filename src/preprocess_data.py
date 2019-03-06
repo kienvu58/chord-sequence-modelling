@@ -1,4 +1,5 @@
 import re
+import numpy as np
 
 
 def is_key_with_sharp(key):
@@ -198,3 +199,176 @@ def parse_chord_name(chord_name):
                 figbass)]
 
     return key, form_name, figbass_name
+
+def get_inversion(figbass):
+    if figbass == "42":
+        figbass = "2"
+    triad_figbass_list = [None, "6", "64"]
+    triad_inversion_list = [[0, 1, 2], [1, 2, 0], [2, 0, 1]]
+
+    seventh_figbass_list = ["7", "65", "43", "2"]
+    seventh_inversion_list = [[0, 1, 2, 3], [1, 2, 3, 0], [2, 3, 0, 1], [3, 0, 1, 2]]
+
+    if figbass in triad_figbass_list:
+        index = triad_figbass_list.index(figbass)
+        return triad_inversion_list[index]
+    elif figbass in seventh_figbass_list:
+        index = seventh_figbass_list.index(figbass)
+        return seventh_inversion_list[index]
+    elif figbass == "9":
+        return [0, 1, 2, 3, 4]
+    else:
+        raise ValueError("Unknown figured bass:", figbass)
+
+def get_note_set(quality, major, form, figbass, changes):
+    """
+        quality: major | minor | Ger | It | Fr derived from numeral
+        major: True | False whether local key is major or minor
+    """
+    inversion = get_inversion(figbass)
+
+    if quality == "Ger":
+        return [0, 1, 2]
+    elif quality == "It":
+        return [0, 1, 2]
+    elif quality == "Fr":
+        return [0, 1, 2]
+    # triad
+    elif len(inversion) == 3:
+        if quality == "minor":
+            if form is None:
+                # minor triad
+                note_set = [0, 3, 7]
+            elif form == "o":
+                # diminished triad
+                note_set = [0, 3, 6]
+            elif form == "+":
+                # augmented triad
+                note_set = [0, 4, 8]
+            elif form == "%":
+                # half-diminished seventh
+                note_set = [0, 3, 6, 10]
+                inversion = [0, 1, 2, 3]
+            else:
+                raise ValueError("Unknown chord: ", quality, form, inversion)
+        elif quality == "major":
+            if form is None:
+                # major triad
+                note_set = [0, 4, 7]
+            elif form == "+":
+                # augmented triad
+                note_set = [0, 4, 8]
+            else: 
+                raise ValueError("Unknown chord: ", quality, form, inversion)
+        else:
+            raise ValueError("Unknown chord: ", quality, form, inversion)
+    # seventh
+    elif len(inversion) == 4:
+        if quality == "minor":
+            if form is None:
+                # minor seventh
+                note_set = [0, 3, 7, 10]
+            elif form == "o":
+                # diminished seventh
+                note_set = [0, 3, 6, 9]
+            elif form == "%":
+                # half-diminished seventh
+                note_set = [0, 3, 6, 10]
+            else:
+                raise ValueError("Unknown chord: ", quality, form, inversion)
+        elif quality == "major":
+            if form is None:
+                # dominant seventh
+                note_set = [0, 4, 7, 10]
+            elif form == "M":
+                # major seventh
+                note_set = [0, 4, 7, 11]
+            elif form == "+":
+                # augmented seventh
+                note_set = [0, 4, 8, 11]
+            else:
+                raise ValueError("Unknown chord: ", quality, form, inversion)
+        else:
+            raise ValueError("Unknown chord: ", quality, form, inversion)
+    # nineth
+    elif len(inversion) == 5:
+        # dominant minor ninth
+        note_set = [0, 4, 7, 10, 1]
+    else:
+        raise ValueError("Unknown chord: ", quality, form, inversion)
+
+    note_set = apply_changes(note_set, changes, major) 
+    note_set = apply_inversion(note_set, inversion)
+
+    return note_set
+
+def apply_inversion(note_set, inversion):
+    inversion_size = len(inversion)
+    first_part = list(np.array(note_set[:inversion_size])[inversion])
+    second_part = note_set[inversion_size:]
+    note_set = first_part + second_part
+    return note_set
+
+def apply_changes(note_set, changes, major):
+    # major_scale = [0, 2, 4, 5, 7, 9, 11]
+    # minor_scale = [0, 2, 3, 5, 7, 8, 10]
+    change_list = parse_changes(changes)
+    for change in change_list:
+        if change == "2":
+            root_index = note_set.index(0)
+            note_set[root_index] = 2
+        elif change == "4":
+            if 3 in note_set:
+                third_index = note_set.index(3)
+            elif 4 in note_set:
+                third_index = note_set.index(4)
+            note_set[third_index] = 5
+        elif change == "6":
+            if 7 in note_set:
+                fifth_index = note_set.index(7)
+            else:
+                fifth_index = note_set.index(6)
+            if 4 in note_set and major:
+                note_set[fifth_index] = 9
+            else:
+                note_set[fifth_index] = 8
+        elif change in ["9", "+9", "+2"]:
+            add_note(note_set, 2)
+        elif change == "+4":
+            add_note(note_set, 5)
+        elif change == "+6":
+            if 4 in note_set and major:
+                add_note(note_set, 9)
+            else:
+                add_note(note_set, 8)
+        elif change in ["7", "#7"]:
+            add_note(note_set, 11)
+        elif change == "#2":
+            if 4 in note_set:
+                third_index = note_set.index(4)
+                note_set[third_index] = 3
+        elif change == "#4":
+            if 7 in note_set:
+                fifth_index = note_set.index(7)
+                note_set[fifth_index] = 6
+        elif change == "b6":
+            if 7 in note_set:
+                fifth_index = note_set.index(7)
+                note_set[fifth_index] = 8
+        elif change in ["b9", "+b9"]:
+            add_note(note_set, 1)
+        else:
+            pass
+
+    return note_set
+
+def add_note(note_set, note):
+    if note not in note_set:
+        note_set.append(note)
+
+def parse_changes(changes):
+    if changes:
+        matches = re.findall(r"(\+)?(b|#)?(2|4|5|6|7|9|11|13)", changes)
+        matches = ["".join(m) for m in matches]
+        return matches
+    return []

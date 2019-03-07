@@ -3,6 +3,11 @@ import pytest
 
 
 @pytest.mark.parametrize("quality,major,form,figbass,changes,expected", [
+    # augmented sixth
+    ("Ger", True, None, "6", None, [8, 0, 3, 6]),
+    ("It", True, None, "6", None, [8, 0, 6]),
+    ("Fr", True, None, "6", None, [8, 0, 2, 6]),
+
     # dominant minor ninth
     ("major", True, None, "9", None, [0, 4, 7, 10, 1]),
 

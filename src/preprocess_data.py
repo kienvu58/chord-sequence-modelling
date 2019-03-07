@@ -228,11 +228,11 @@ def get_note_set(quality, major, form, figbass, changes):
     inversion = get_inversion(figbass)
 
     if quality == "Ger":
-        return [0, 1, 2]
+        return [8, 0, 3, 6]
     elif quality == "It":
-        return [0, 1, 2]
+        return [8, 0, 6]
     elif quality == "Fr":
-        return [0, 1, 2]
+        return [8, 0, 2, 6]
     # triad
     elif len(inversion) == 3:
         if quality == "minor":
@@ -332,7 +332,7 @@ def apply_changes(note_set, changes, major):
                 note_set[fifth_index] = 9
             else:
                 note_set[fifth_index] = 8
-        elif change in ["9", "+9", "+2"]:
+        elif change in ["9", "+9", "+2", "+#2"]:
             add_note(note_set, 2)
         elif change == "+4":
             add_note(note_set, 5)
@@ -357,6 +357,23 @@ def apply_changes(note_set, changes, major):
                 note_set[fifth_index] = 8
         elif change in ["b9", "+b9"]:
             add_note(note_set, 1)
+        elif change == "b2":
+            if 0 in note_set:
+                root_index = note_set.index(0)
+                note_set[root_index] = 1
+        elif change == "+b2":
+            add_note(note_set, 1)
+        elif change == "b4":
+            if 3 in note_set:
+                third_index = note_set.index(3)
+                note_set[third_index] = 4
+            elif 4 in note_set:
+                third_index = note_set.index(4)
+                note_set[third_index] = 5
+        elif change == "#5":
+            if 7 in note_set:
+                fifth_index = note_set.index(7)
+                note_set[fifth_index] = 8
         else:
             pass
 

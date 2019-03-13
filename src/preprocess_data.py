@@ -2,6 +2,22 @@ import re
 import numpy as np
 
 
+def get_key_number(key):
+    key_list = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+    key = key.lower()
+    key = "c" if key == "b#" else key
+    key = "c#" if key == "db" else key
+    key = "d#" if key == "eb" else key
+    key = "e" if key == "fb" else key
+    key = "f" if key == "e#" else key
+    key = "f#" if key == "gb" else key
+    key = "g#" if key == "ab" else key
+    key = "a#" if key == "bb" else key
+    key = "b" if key == "cb" else key
+
+    return key_list.index(key)
+
+
 def is_key_with_sharp(key):
     key_with_sharp_list = ["A", "B", "C", "D", "E", "G", "a", "b", "e"]
     key_with_flat_list = ["F", "c", "d", "f", "g"]
@@ -83,6 +99,17 @@ def get_chord_name_from_key_and_numeral(key, numeral):
     chord_name = chord_name if major_quality else chord_name.lower()
 
     return chord_name
+
+def get_root(global_key, local_key, numeral, relativeroot=None):
+    local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
+    if relativeroot is not None:
+        local_key_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
+
+    if numeral in ["Ger", "It", "Fr"]:
+        return local_key_name
+    
+    root = get_chord_name_from_key_and_numeral(local_key_name, numeral)
+    return root
 
 
 def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, relativeroot=None):
@@ -220,7 +247,7 @@ def get_inversion(figbass):
     else:
         raise ValueError("Unknown figured bass:", figbass)
 
-def get_note_set(quality, major, form, figbass, changes):
+def get_note_set(quality, major, form, figbass, changes, use_changes=True):
     """
         quality: major | minor | Ger | It | Fr derived from numeral
         major: True | False whether local key is major or minor
@@ -297,7 +324,9 @@ def get_note_set(quality, major, form, figbass, changes):
     else:
         raise ValueError("Unknown chord: ", quality, form, inversion)
 
-    note_set = apply_changes(note_set, changes, major) 
+    if use_changes:
+        note_set = apply_changes(note_set, changes, major) 
+        
     note_set = apply_inversion(note_set, inversion)
 
     return note_set

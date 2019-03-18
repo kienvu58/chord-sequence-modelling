@@ -45,3 +45,45 @@ In each line, chord symbols are seperated by space.
 ### Overview
 
 The model takes a chord progression as input and assigns a probability to it.
+
+### Input
+
+- Train dataset
+- Test dataset
+
+### Output
+
+List of tuples. Each tuple contains the number chord of the chord progression and its probability
+
+## Evaluate
+
+### Input
+
+- Text file. Each line: probability and the number of chord of the chord progression.
+
+# Plan
+
+## Deep learning models
+
+### Preprocessing module
+
+Preprocessing module that can be passed as an argument into model module.
+
+### Architecture of the model
+
+- One-hot encoding
+- LSTM model
+- Softmax, classifying chords
+- Elmo language model
+- Chord2Vec
+- Seperated voice - classifying notes
+- However, need to fix the number of voices
+
+
+### How to train the model
+
+### Objective functions
+
+## Generate actual music from chord progression
+
+This helps to evaluate

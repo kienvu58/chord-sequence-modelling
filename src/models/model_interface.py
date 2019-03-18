@@ -1,4 +1,4 @@
-class BaseModel:
+class ModelI:
     def fit(self, dataset):
         raise NotImplementedError()
 

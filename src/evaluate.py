@@ -10,8 +10,8 @@ def perplexity(log_score_list):
     Let p(s_i) is the probability of sentence ith, N is the total number
     of words in the corpus C.
         perplexity(C) = [\prod_{i=1}^m p(s_i)]^(-1/N)
-                      = 2^{ \log_2 [\prod_{i=1}^m p(s_i)]^(-1/N) }
-                      = 2^{ -1/N \sum_{i=1}^m \log_2 p(s_i) }
+                      = \exp{ \log [\prod_{i=1}^m p(s_i)]^(-1/N) }
+                      = \exp{ -1/N \sum_{i=1}^m \log p(s_i) }
     """
     log_scores, ns = zip(*log_score_list)
     H = np.sum(log_scores)
@@ -19,7 +19,7 @@ def perplexity(log_score_list):
     N = np.sum(ns)
     H /= N
 
-    pp = 2**(-H)
+    pp = np.exp(-H)
     return pp
 
 

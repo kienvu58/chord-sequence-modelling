@@ -4,7 +4,7 @@ import numpy as np
 from preprocess_data import get_root, get_key_number, get_note_set
 
 
-def split_data_by_phrase(phrases_txt, split_ratio=0.7, skip_short_phrases=None):
+def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=None):
     """
     returns 2 lists: train and test set
         each list contains tuples of begin and end indices of phrases
@@ -25,13 +25,15 @@ def split_data_by_phrase(phrases_txt, split_ratio=0.7, skip_short_phrases=None):
                 phrase_list.append((begin_idx, end_idx))
 
     n_phrases = len(phrase_list)
-    n_train = int(n_phrases * split_ratio)
+    n_train = int(n_phrases * split_ratio[0]/sum(split_ratio))
+    n_val = int(n_phrases * split_ratio[1]/sum(split_ratio))
 
     random.shuffle(phrase_list)
 
     train_phrases = phrase_list[:n_train]
-    test_phrases = phrase_list[n_train:]
-    return train_phrases, test_phrases
+    val_phrases = phrase_list[n_train:n_train+n_val]
+    test_phrases = phrase_list[n_train+n_val:]
+    return train_phrases, val_phrases, test_phrases
 
 
 def transpose_phrase(df):

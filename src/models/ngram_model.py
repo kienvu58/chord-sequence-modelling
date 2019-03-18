@@ -1,4 +1,4 @@
-from .base_model import BaseModel
+from .model_interface import ModelI
 from nltk.lm.models import (
     Lidstone,
     Laplace,
@@ -10,7 +10,7 @@ from nltk.util import ngrams, pad_sequence
 import numpy as np
 
 
-class NgramModel(BaseModel):
+class NgramModel(ModelI):
     def __init__(self, hparams):
         self.order = hparams["order"]
         self.counter = hparams["counter"]
@@ -33,7 +33,7 @@ class NgramModel(BaseModel):
         total_log_score = 0
         for word, context in zip(words, contexts):
             score = self.model.score(word, context)
-            log_score = np.log2(score)
+            log_score = np.log(score)
             total_log_score += log_score
 
         return total_log_score

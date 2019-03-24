@@ -1,7 +1,7 @@
 class Vocab:
     def __init__(self):
-        self._token_to_index = {"<s>": 0}
-        self._index_to_token = ["<s>"]
+        self._token_to_index = {"<s>": 0, "</s>": 1}
+        self._index_to_token = ["<s>", "</s>"]
 
     def add(self, word):
         index = self._token_to_index.get(word, None)
@@ -19,7 +19,7 @@ class Vocab:
 
     def encode_sentence(self, sent):
         sent = [self[word] for word in sent]
-        sent = [0] + sent 
+        sent = [0] + sent + [1]
         return sent
 
     def __len__(self):

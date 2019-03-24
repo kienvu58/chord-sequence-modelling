@@ -21,6 +21,15 @@ class LSTMCPM(nn.Module):
         out = self.output(out_packed_sequence.data)
         return F.log_softmax(out, dim=1)
 
+    def predict(self, context):
+        self.eval()
+        with torch.no_grad(): 
+            embedded_context = self.embedding(context)
+            embedded_packed = nn.utils.rnn.pack_sequence([embedded_context])
+            out_packed, _ = self.lstm(embedded_packed)
+            output = self.output(out_packed.data)
+        return F.log_softmax(output[-1], dim=0)
+
 def batches(data, batch_size):
     random.shuffle(data)
     for i in range(0, len(data), batch_size):
@@ -112,3 +121,26 @@ class LSTMModel(ModelI):
             prob = out[torch.arange(0, y.data.shape[0], dtype=torch.int64), y.data]
             log_score = prob.sum().item()
         return log_score
+
+    def generate(self, min_length=1, max_length=100):
+        """
+        high temperature - uniform distribution
+        low temperature - energy concentrates at max value
+        """
+        progression = [0]
+        finished = False
+        while not finished:
+            x = torch.LongTensor(progression)
+            if torch.cuda.is_available():
+                x = x.cuda()
+            prob = self.model.predict(x).exp()
+            next_index = torch.multinomial(prob, 1)[0].item()
+
+            if next_index not in [0, 1]:
+                progression.append(next_index)
+
+            finished = next_index == 1 and len(progression) > min_length or len(progression) > max_length
+        
+        return [self.vocab[index] for index in progression[1:]]
+            
+

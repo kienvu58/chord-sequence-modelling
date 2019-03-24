@@ -11,3 +11,6 @@ class ModelI:
     def load(self, filename):
         raise NotImplementedError()
 
+    def generate(self, min_length):
+        raise NotImplementedError()
+

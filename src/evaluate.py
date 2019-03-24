@@ -27,7 +27,7 @@ def evaluate(model, corpus):
     log_score_list = []
     for s in corpus:
         log_score = model.log_score(s)
-        n = len(s)
+        n = len(s) + 1  # 1 for ending symbol
         log_score_list.append((log_score, n))
 
     pp = perplexity(log_score_list)

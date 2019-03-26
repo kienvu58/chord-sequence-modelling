@@ -4,6 +4,38 @@ import numpy as np
 from preprocess_data import get_root, get_key_number, get_note_set
 
 
+def split_data_by_movement(phrase_txt, split_ratio=[7, 1, 2], skip_short_phrases=None):
+    with open(phrase_txt) as f:
+        movement_list = f.read().split("\n")
+
+    movement_phrase_list = []
+
+    for movement in movement_list:
+        phrase_str_list = movement.split(" ")
+        phrase_list = []
+        for phrase_str in phrase_str_list[1:]:
+            begin_idx, end_idx = phrase_str.split(":")
+            begin_idx = int(begin_idx)
+            end_idx = int(end_idx)
+
+            phrase_len = end_idx - begin_idx
+            if skip_short_phrases is None or phrase_len > skip_short_phrases:
+                phrase_list.append((begin_idx, end_idx))
+        movement_phrase_list.append(phrase_list)
+
+    phrase_list = movement_phrase_list
+    n_phrases = len(phrase_list)
+    n_train = int(n_phrases * split_ratio[0]/sum(split_ratio))
+    n_val = int(n_phrases * split_ratio[1]/sum(split_ratio))
+
+    random.shuffle(phrase_list)
+
+    train_phrases = phrase_list[:n_train]
+    val_phrases = phrase_list[n_train:n_train+n_val]
+    test_phrases = phrase_list[n_train+n_val:]
+    return train_phrases, val_phrases, test_phrases
+
+
 def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=None):
     """
     returns 2 lists: train and test set
@@ -56,6 +88,28 @@ def transpose_phrase(df):
 
     return transposed_list
 
+
+def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False):
+    df_all = pd.read_csv(all_csv)
+    dataset = []
+
+    for phrase_list in movement_phrase_list:
+        frames = []
+        for beg, end in phrase_list:
+            df = df_all[beg:end]
+            frames.append(df)
+        df_movement = pd.concat(frames)
+
+        if augment:
+            df_list = transpose_phrase(df_movement)
+        else:
+            df_list = [df_movement]
+
+        for df in df_list:
+            progression = process_data_func(df)
+            dataset.append(progression)
+
+    return dataset
 
 def get_dataset(all_csv, phrase_list, process_data_func, augment=False):
     """

@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv("all_annotations.csv")
+df = pd.read_csv("data/all_annotations.csv")
 
 movement = "{:02d}_{} ".format(df["no"][0], df["mov"][0])
 movement_list = []
@@ -44,5 +44,5 @@ for i, row in df.iterrows():
         phrase_list = []
         movement = current_movement
 
-with open("phrases.txt", "w") as f:
+with open("data/phrases.txt", "w") as f:
     f.write("\n".join(movement_list))

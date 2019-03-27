@@ -1,5 +1,6 @@
 from audio.generate import generate_score_and_audio, generate_bass_notes
 import pandas as pd
+from preprocess_data import convert_to_chord_name
 from prepare_dataset import dataframe_to_note_set_progression, split_data_by_phrase, get_dataset, split_data_by_movement, get_movement_dataset
 from models.ngram_model import NgramModel
 from models.lstm_model import LSTMModel
@@ -31,13 +32,27 @@ def save_movement_datasets():
         f.write("\n".join(test_dataset))
 
 
+def convert_phrases():
+    phrase_list, _, _ = split_data_by_phrase("data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
+    dataset = get_dataset("data/all_annotations.csv", phrase_list, dataframe_to_note_set_progression)
+
+    progression_list = []
+    for phrase in dataset:
+        progression = phrase.split(" ")
+        progression = convert_to_chord_name(progression)
+        progression_list.append(progression)
+
+    with open("data/phrases_name.txt", "w") as f:
+        f.write("\n".join(progression_list))
+
+
 def save_phrase_datasets():
     train_phrases, val_phrases, test_phrases = split_data_by_phrase(
         "data/phrases.txt", skip_short_phrases=1)
 
     def process_data_func(df): return dataframe_to_note_set_progression(df)
     train_dataset = get_dataset(
-        "data/all_annotations.csv", train_phrases, dataframe_to_note_set_progression, augment=True)
+        "data/all_annotations.csv", train_phrases, process_data_func, augment=True)
     val_dataset = get_dataset("data/all_annotations.csv",
                               val_phrases, process_data_func, augment=False)
     test_dataset = get_dataset(
@@ -84,7 +99,7 @@ def ngram_model(train, val, test):
     model.fit(train)
     print("ngram model perplexity:", evaluate(model, test))
     progression = model.generate(10)
-    print("generated progression:", len(progression), progression)
+    print("generated progression:", len(progression), convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
     generate_score_and_audio(progression, "ngram", "output")
 
@@ -108,7 +123,7 @@ def lstm_model(train, val, test):
     model.fit(train, val)
     print("lstm model perplexity:", evaluate(model, test))
     progression = model.generate(10)
-    print("generated progression:", len(progression), progression)
+    print("generated progression:", len(progression), convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
     generate_score_and_audio(progression, "lstm", "output")
 
@@ -120,8 +135,9 @@ def load_train_val_test(func, level="phrase"):
     return train, val, test
 
 
+convert_phrases()
 # save_movement_datasets()
 # generate_audio()
-train, val, test = load_train_val_test(load_dataset, level="movement")
-ngram_model(train, val, test)
-lstm_model(train, val, test)
+# train, val, test = load_train_val_test(load_dataset, level="phrase")
+# ngram_model(train, val, test)
+# lstm_model(train, val, test)

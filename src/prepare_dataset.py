@@ -36,7 +36,7 @@ def split_data_by_movement(phrase_txt, split_ratio=[7, 1, 2], skip_short_phrases
     return train_phrases, val_phrases, test_phrases
 
 
-def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=None):
+def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=None, shuffle=True):
     """
     returns 2 lists: train and test set
         each list contains tuples of begin and end indices of phrases
@@ -60,7 +60,8 @@ def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=
     n_train = int(n_phrases * split_ratio[0]/sum(split_ratio))
     n_val = int(n_phrases * split_ratio[1]/sum(split_ratio))
 
-    random.shuffle(phrase_list)
+    if shuffle:
+        random.shuffle(phrase_list)
 
     train_phrases = phrase_list[:n_train]
     val_phrases = phrase_list[n_train:n_train+n_val]

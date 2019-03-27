@@ -3,7 +3,8 @@ import numpy as np
 
 
 def get_key_number(key):
-    key_list = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+    key_list = ["c", "c#", "d", "d#", "e",
+                "f", "f#", "g", "g#", "a", "a#", "b"]
     key = key.lower()
     key = "c" if key == "b#" else key
     key = "c#" if key == "db" else key
@@ -100,14 +101,16 @@ def get_chord_name_from_key_and_numeral(key, numeral):
 
     return chord_name
 
+
 def get_root(global_key, local_key, numeral, relativeroot=None):
     local_key_name = get_chord_name_from_key_and_numeral(global_key, local_key)
     if relativeroot is not None:
-        local_key_name = get_chord_name_from_key_and_numeral(local_key_name, relativeroot)
+        local_key_name = get_chord_name_from_key_and_numeral(
+            local_key_name, relativeroot)
 
     if numeral in ["Ger", "It", "Fr"]:
         return local_key_name
-    
+
     root = get_chord_name_from_key_and_numeral(local_key_name, numeral)
     return root
 
@@ -227,6 +230,7 @@ def parse_chord_name(chord_name):
 
     return key, form_name, figbass_name
 
+
 def get_inversion(figbass):
     if figbass == "42":
         figbass = "2"
@@ -234,7 +238,8 @@ def get_inversion(figbass):
     triad_inversion_list = [[0, 1, 2], [1, 2, 0], [2, 0, 1]]
 
     seventh_figbass_list = ["7", "65", "43", "2"]
-    seventh_inversion_list = [[0, 1, 2, 3], [1, 2, 3, 0], [2, 3, 0, 1], [3, 0, 1, 2]]
+    seventh_inversion_list = [[0, 1, 2, 3], [
+        1, 2, 3, 0], [2, 3, 0, 1], [3, 0, 1, 2]]
 
     if figbass in triad_figbass_list:
         index = triad_figbass_list.index(figbass)
@@ -246,6 +251,89 @@ def get_inversion(figbass):
         return [0, 1, 2, 3, 4]
     else:
         raise ValueError("Unknown figured bass:", figbass)
+
+
+def convert_to_chord_name(progression):
+    if not isinstance(progression, list):
+        progression = progression.split(" ")
+    chord_name_list = []
+    for note_set_str in progression:
+        chord_name = seperate_root(note_set_str.split("_"))
+        chord_name_list.append(chord_name)
+    return " ".join(chord_name_list)
+
+
+def seperate_root(note_set):
+    note_set = np.array([int(note) for note in note_set])
+    root_first_chords = {
+        (0, 4, 7): "",
+        (0, 3, 7): "m",
+        (0, 3, 6): "o",
+        (0, 4, 8): "+",
+        (0, 3, 6, 10): "%7",
+        (0, 3, 7, 10): "m7",
+        (0, 3, 6, 9): "o7",
+        (0, 4, 7, 10): "7",
+        (0, 4, 7, 11): "M7",
+        (0, 4, 8, 11): "+7",
+        (0, 4, 7, 10, 1): "9",
+    }
+
+    root_second_chords = {
+        (7, 0, 4): "64",
+        (7, 0, 3): "m64",
+        (6, 0, 3): "o64",
+        (8, 0, 4): "+64",
+        (10, 0, 3, 6): "%2",
+        (10, 0, 3, 7): "m2",
+        (9, 0, 3, 6): "o2",
+        (10, 0, 4, 7): "2",
+        (11, 0, 4, 7): "M2",
+        (11, 0, 4, 8): "+2",
+        (8, 0, 3, 6): "Ger",
+        (8, 0, 6): "It",
+        (8, 0, 2, 6): "Fr",
+    }
+
+    root_third_chords = {
+        (4, 7, 0): "6",
+        (3, 7, 0): "m6",
+        (3, 6, 0): "o6",
+        (4, 8, 0): "+6",
+        (6, 10, 0, 3): "%43",
+        (7, 10, 0, 3): "m43",
+        (6, 9, 0, 3): "o43",
+        (7, 10, 0, 4): "43",
+        (7, 11, 0, 4): "M43",
+        (8, 11, 0, 4): "+43",
+    }
+
+    root_forth_chords = {
+        (3, 6, 10, 0): "%65",
+        (3, 7, 10, 0): "m65",
+        (3, 6, 9, 0): "o65",
+        (4, 7, 10, 0): "65",
+        (4, 7, 11, 0): "M65",
+        (4, 8, 11, 0): "+65",
+    }
+
+    note_name_list = ["C", "C#", "D", "Eb", "E",
+                      "F", "F#", "G", "Ab", "A", "Bb", "B"]
+
+    sub_root = tuple((note_set - note_set[0]) % 12)
+    if sub_root in root_first_chords:
+        return "{}{}".format(note_name_list[note_set[0]], root_first_chords[sub_root])
+    sub_root = tuple((note_set - note_set[1]) % 12)
+    if sub_root in root_second_chords:
+        return "{}{}".format(note_name_list[note_set[1]], root_second_chords[sub_root])
+    sub_root = tuple((note_set - note_set[2]) % 12)
+    if sub_root in root_third_chords:
+        return "{}{}".format(note_name_list[note_set[2]], root_third_chords[sub_root])
+    sub_root = tuple((note_set - note_set[3]) % 12)
+    if sub_root in root_forth_chords:
+        return "{}{}".format(note_name_list[note_set[3]], root_forth_chords[sub_root])
+    return "_".join([str(note) for note in note_set])
+
 
 def get_note_set(quality, major, form, figbass, changes, use_changes=True):
     """
@@ -285,7 +373,7 @@ def get_note_set(quality, major, form, figbass, changes, use_changes=True):
             elif form == "+":
                 # augmented triad
                 note_set = [0, 4, 8]
-            else: 
+            else:
                 raise ValueError("Unknown chord: ", quality, form, inversion)
         else:
             raise ValueError("Unknown chord: ", quality, form, inversion)
@@ -325,11 +413,12 @@ def get_note_set(quality, major, form, figbass, changes, use_changes=True):
         raise ValueError("Unknown chord: ", quality, form, inversion)
 
     if use_changes:
-        note_set = apply_changes(note_set, changes, major) 
-        
+        note_set = apply_changes(note_set, changes, major)
+
     note_set = apply_inversion(note_set, inversion)
 
     return note_set
+
 
 def apply_inversion(note_set, inversion):
     inversion_size = len(inversion)
@@ -337,6 +426,7 @@ def apply_inversion(note_set, inversion):
     second_part = note_set[inversion_size:]
     note_set = first_part + second_part
     return note_set
+
 
 def apply_changes(note_set, changes, major):
     # major_scale = [0, 2, 4, 5, 7, 9, 11]
@@ -408,9 +498,11 @@ def apply_changes(note_set, changes, major):
 
     return note_set
 
+
 def add_note(note_set, note):
     if note not in note_set:
         note_set.append(note)
+
 
 def parse_changes(changes):
     if changes:

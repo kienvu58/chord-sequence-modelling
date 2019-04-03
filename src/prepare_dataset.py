@@ -1,3 +1,4 @@
+import itertools
 import pandas as pd
 import random
 import numpy as np
@@ -36,7 +37,7 @@ def split_data_by_movement(phrase_txt, split_ratio=[7, 1, 2], skip_short_phrases
     return train_phrases, val_phrases, test_phrases
 
 
-def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=None, shuffle=True):
+def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], shuffle=True):
     """
     returns 2 lists: train and test set
         each list contains tuples of begin and end indices of phrases
@@ -51,10 +52,7 @@ def split_data_by_phrase(phrases_txt, split_ratio=[7, 1, 2], skip_short_phrases=
             begin_idx, end_idx = phrase_str.split(":")
             begin_idx = int(begin_idx)
             end_idx = int(end_idx)
-
-            phrase_len = end_idx - begin_idx
-            if skip_short_phrases is None or phrase_len > skip_short_phrases:
-                phrase_list.append((begin_idx, end_idx))
+            phrase_list.append((begin_idx, end_idx))
 
     n_phrases = len(phrase_list)
     n_train = int(n_phrases * split_ratio[0]/sum(split_ratio))
@@ -90,7 +88,7 @@ def transpose_phrase(df):
     return transposed_list
 
 
-def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False):
+def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False):
     df_all = pd.read_csv(all_csv)
     dataset = []
 
@@ -98,7 +96,8 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
         frames = []
         for beg, end in phrase_list:
             df = df_all[beg:end]
-            frames.append(df)
+            if end - beg > skip_short_phrases:
+                frames.append(df)
         df_movement = pd.concat(frames)
 
         if augment:
@@ -110,9 +109,18 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
             progression = process_data_func(df)
             dataset.append(progression)
 
-    return dataset
+    final_dataset = []
+    for progression in dataset:
+        chord_list = progression.split(" ")
+        if skip_repetions:
+            chord_list = [k for k, g in itertools.groupby(chord_list)]
+        if len(chord_list) > skip_short_phrases:
+            final_dataset.append(" ".join(chord_list))
 
-def get_dataset(all_csv, phrase_list, process_data_func, augment=False):
+    return final_dataset
+
+
+def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False):
     """
     process_data_func: take a dataframe as input and return a chord progression
         e.g. process_data_func = lambda df: some_func(df, *args)
@@ -130,7 +138,15 @@ def get_dataset(all_csv, phrase_list, process_data_func, augment=False):
         for df in df_list:
             progression = process_data_func(df)
             dataset.append(progression)
-    return dataset
+
+    final_dataset = []
+    for progression in dataset:
+        chord_list = progression.split(" ")
+        if skip_repetions:
+            chord_list = [k for k, g in itertools.groupby(chord_list)]
+        if len(chord_list) > skip_short_phrases:
+            final_dataset.append(" ".join(chord_list))
+    return final_dataset
 
 
 def join_list(note_set):
@@ -171,6 +187,12 @@ def convert_to_note_set(row, add_root=True, sort_notes=False):
         note_set.sort()
 
     return join_list(note_set)
+
+
+def dataframe_to_note_set_progression_sorted(df):
+    note_set_progression = df.apply(
+        lambda row: convert_to_note_set(row, sort_notes=True), axis=1)
+    return " ".join([note for note in note_set_progression if not pd.isnull(note)])
 
 
 def dataframe_to_note_set_progression(df):

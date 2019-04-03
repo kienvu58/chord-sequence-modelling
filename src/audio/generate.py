@@ -151,5 +151,7 @@ def generate_score_and_audio(progression, title, path):
     with open(score_path, "w") as f:
         f.write(template)
 
+    owd = os.getcwd()
     os.chdir(path)
     subprocess.call([lilypond_path, score_fn])
+    os.chdir(owd)

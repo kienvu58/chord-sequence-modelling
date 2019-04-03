@@ -320,18 +320,22 @@ def seperate_root(note_set):
     note_name_list = ["C", "C#", "D", "Eb", "E",
                       "F", "F#", "G", "Ab", "A", "Bb", "B"]
 
-    sub_root = tuple((note_set - note_set[0]) % 12)
-    if sub_root in root_first_chords:
-        return "{}{}".format(note_name_list[note_set[0]], root_first_chords[sub_root])
-    sub_root = tuple((note_set - note_set[1]) % 12)
-    if sub_root in root_second_chords:
-        return "{}{}".format(note_name_list[note_set[1]], root_second_chords[sub_root])
-    sub_root = tuple((note_set - note_set[2]) % 12)
-    if sub_root in root_third_chords:
-        return "{}{}".format(note_name_list[note_set[2]], root_third_chords[sub_root])
-    sub_root = tuple((note_set - note_set[3]) % 12)
-    if sub_root in root_forth_chords:
-        return "{}{}".format(note_name_list[note_set[3]], root_forth_chords[sub_root])
+    try:
+        sub_root = tuple((note_set - note_set[0]) % 12)
+        if sub_root in root_first_chords:
+            return "{}{}".format(note_name_list[note_set[0]], root_first_chords[sub_root])
+        sub_root = tuple((note_set - note_set[1]) % 12)
+        if sub_root in root_second_chords:
+            return "{}{}".format(note_name_list[note_set[1]], root_second_chords[sub_root])
+        sub_root = tuple((note_set - note_set[2]) % 12)
+        if sub_root in root_third_chords:
+            return "{}{}".format(note_name_list[note_set[2]], root_third_chords[sub_root])
+        sub_root = tuple((note_set - note_set[3]) % 12)
+        if sub_root in root_forth_chords:
+            return "{}{}".format(note_name_list[note_set[3]], root_forth_chords[sub_root])
+    except Exception as e:
+        print(e)
+        print(note_set)
     return "_".join([str(note) for note in note_set])
 
 

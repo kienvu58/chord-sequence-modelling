@@ -21,7 +21,7 @@ def save_movement_datasets(process_data_func=dataframe_to_note_set_progression):
         "data/phrases.txt")
 
     train_dataset = get_movement_dataset(
-        "data/all_annotations.csv", train_phrases, process_data_func, augment=True, 
+        "data/all_annotations.csv", train_phrases, process_data_func, augment=True,
         skip_short_phrases=SHORT_PHRASE_LEN, skip_repetions=SKIP_REPETIONS)
     val_dataset = get_movement_dataset(
         "data/all_annotations.csv", val_phrases, process_data_func, augment=False,
@@ -36,27 +36,6 @@ def save_movement_datasets(process_data_func=dataframe_to_note_set_progression):
         f.write("\n".join(val_dataset))
     with open("data/test_movements.txt", "w") as f:
         f.write("\n".join(test_dataset))
-
-
-def convert_phrases():
-    phrase_list, _, _ = split_data_by_phrase(
-        "data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
-    dataset = get_dataset(
-        "data/all_annotations.csv", phrase_list, dataframe_to_note_set_progression,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetions=SKIP_REPETIONS)
-
-
-    with open("data/phrases_note_set.txt", "w") as f:
-        f.write("\n".join(dataset))
-
-    progression_list = []
-    for phrase in dataset:
-        progression = phrase.split(" ")
-        progression = convert_to_chord_name(progression)
-        progression_list.append(progression)
-
-    with open("data/phrases_name.txt", "w") as f:
-        f.write("\n".join(progression_list))
 
 
 def save_phrase_datasets(process_data_func=dataframe_to_note_set_progression):
@@ -79,6 +58,26 @@ def save_phrase_datasets(process_data_func=dataframe_to_note_set_progression):
         f.write("\n".join(val_dataset))
     with open("data/test_phrases.txt", "w") as f:
         f.write("\n".join(test_dataset))
+
+
+def convert_phrases():
+    phrase_list, _, _ = split_data_by_phrase(
+        "data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
+    dataset = get_dataset(
+        "data/all_annotations.csv", phrase_list, dataframe_to_note_set_progression,
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetions=SKIP_REPETIONS)
+
+    with open("data/phrases_note_set.txt", "w") as f:
+        f.write("\n".join(dataset))
+
+    progression_list = []
+    for phrase in dataset:
+        progression = phrase.split(" ")
+        progression = convert_to_chord_name(progression)
+        progression_list.append(progression)
+
+    with open("data/phrases_name.txt", "w") as f:
+        f.write("\n".join(progression_list))
 
 
 def load_dataset(filename):
@@ -171,8 +170,8 @@ def calculate_nonbijective_vl():
         f.write("\n".join(vl_list))
 
 
-# save_phrase_datasets(process_data_func=dataframe_to_note_set_progression_sorted)
-# save_movement_datasets(process_data_func=dataframe_to_note_set_progression_sorted)
+# save_phrase_datasets(process_data_func=dataframe_to_note_set_progression)
+# save_movement_datasets(process_data_func=dataframe_to_note_set_progression)
 # convert_phrases()
 # generate_audio()
 # calculate_nonbijective_vl()

@@ -1,8 +1,11 @@
 from audio.generate import generate_score_and_audio, generate_bass_notes
 import pandas as pd
 from preprocess_data import convert_to_chord_name
-from prepare_dataset import (dataframe_to_note_set_progression, split_data_by_phrase, get_dataset,
-                             split_data_by_movement, get_movement_dataset, dataframe_to_note_set_progression_sorted)
+from prepare_dataset import (dataframe_to_note_set_progression,
+                             split_data_by_phrase, get_dataset,
+                             split_data_by_movement,
+                             get_movement_dataset,
+                             dataframe_to_note_set_progression_sorted)
 from models.ngram_model import NgramModel
 from models.lstm_model import LSTMModel
 from evaluate import evaluate

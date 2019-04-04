@@ -1,5 +1,6 @@
 import re
 import numpy as np
+import itertools
 
 
 def get_key_number(key):
@@ -253,18 +254,20 @@ def get_inversion(figbass):
         raise ValueError("Unknown figured bass:", figbass)
 
 
-def convert_to_chord_name(progression):
+def convert_to_chord_name(progression, output="all", is_sorted=False):
     if not isinstance(progression, list):
         progression = progression.split(" ")
     chord_name_list = []
     for note_set_str in progression:
-        chord_name = seperate_root(note_set_str.split("_"))
+        chord_name = seperate_root(note_set_str.split("_"), output=output, is_sorted=is_sorted)
         chord_name_list.append(chord_name)
     return " ".join(chord_name_list)
 
 
-def seperate_root(note_set):
-    note_set = np.array([int(note) for note in note_set])
+def seperate_root(note_set, output="all", is_sorted=False):
+    """
+    cannot recovery the actual name of the note set
+    """
     root_first_chords = {
         (0, 4, 7): "",
         (0, 3, 7): "m",
@@ -277,9 +280,6 @@ def seperate_root(note_set):
         (0, 4, 7, 11): "M7",
         (0, 4, 8, 11): "+7",
         (0, 4, 7, 10, 1): "9",
-        (0, 3, 6, 8): "Ger",
-        (0, 6, 8): "It",
-        (0, 2, 6, 8): "Fr",
     }
 
     root_second_chords = {
@@ -323,23 +323,58 @@ def seperate_root(note_set):
     note_name_list = ["C", "C#", "D", "Eb", "E",
                       "F", "F#", "G", "Ab", "A", "Bb", "B"]
 
-    try:
-        sub_root = tuple((note_set - note_set[0]) % 12)
-        if sub_root in root_first_chords:
-            return "{}{}".format(note_name_list[note_set[0]], root_first_chords[sub_root])
-        sub_root = tuple((note_set - note_set[1]) % 12)
-        if sub_root in root_second_chords:
-            return "{}{}".format(note_name_list[note_set[1]], root_second_chords[sub_root])
-        sub_root = tuple((note_set - note_set[2]) % 12)
-        if sub_root in root_third_chords:
-            return "{}{}".format(note_name_list[note_set[2]], root_third_chords[sub_root])
-        sub_root = tuple((note_set - note_set[3]) % 12)
-        if sub_root in root_forth_chords:
-            return "{}{}".format(note_name_list[note_set[3]], root_forth_chords[sub_root])
-    except Exception as e:
-        print(e)
-        print(note_set)
-    return "_".join([str(note) for note in note_set])
+    note_set = np.array([int(note) for note in note_set])
+    if not is_sorted:
+        note_set_list = [note_set]
+    else:
+        note_set_list = list(itertools.permutations(note_set))
+
+    possible_chord_list = []
+    for note_set in note_set_list:
+        if len(note_set) > 0:
+            sub_root = tuple((note_set - note_set[0]) % 12)
+            if sub_root in root_first_chords:
+                possible_chord_list.append("{}{}".format(
+                    note_name_list[note_set[0]], root_first_chords[sub_root]))
+
+        if len(note_set) > 1:
+            sub_root = tuple((note_set - note_set[1]) % 12)
+            if sub_root in root_second_chords:
+                possible_chord_list.append("{}{}".format(
+                    note_name_list[note_set[1]], root_second_chords[sub_root]))
+
+        if len(note_set) > 2:
+            sub_root = tuple((note_set - note_set[2]) % 12)
+            if sub_root in root_third_chords:
+                possible_chord_list.append("{}{}".format(
+                    note_name_list[note_set[2]], root_third_chords[sub_root]))
+
+        if len(note_set) > 3:
+            sub_root = tuple((note_set - note_set[3]) % 12)
+            if sub_root in root_forth_chords:
+                possible_chord_list.append("{}{}".format(
+                    note_name_list[note_set[3]], root_forth_chords[sub_root]))
+
+    if len(possible_chord_list) == 0:
+        raise Exception("Unknown chords:", note_set)
+    possible_chord_list = sorted(possible_chord_list)
+    if output == "first":
+        return possible_chord_list[0]
+    elif output == "root":
+        final_chord_list = []
+        for chord in possible_chord_list:
+            is_inversion = False
+            for inv_str in ["6", "43", "65", "64", "2"]:
+                if inv_str in chord:
+                    is_inversion = True
+                    break
+            if not is_inversion:
+                final_chord_list.append(chord)
+        if len(final_chord_list) == 0:
+            final_chord_list.append(possible_chord_list[0])
+        return "/".join(final_chord_list)
+    else:
+        return "/".join(possible_chord_list)
 
 
 def get_note_set(quality, major, form, figbass, changes, use_changes=True):

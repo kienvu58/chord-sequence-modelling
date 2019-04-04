@@ -88,6 +88,17 @@ def transpose_phrase(df):
     return transposed_list
 
 
+def transpose_phrase_to_c_maj_or_a_min(df):
+    assert len(df["global_key"].unique()) == 1
+    original_key = df["global_key"].iloc[0]
+    is_minor_key = (original_key == original_key.lower())
+    key = "a" if is_minor_key else "C"
+    transposed_df = df.replace(
+        to_replace={"global_key": original_key}, value=key, inplace=False)
+
+    return [transposed_df]
+
+
 def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False):
     df_all = pd.read_csv(all_csv)
     dataset = []
@@ -120,7 +131,7 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
     return final_dataset
 
 
-def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False):
+def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False, augment_func=transpose_phrase):
     """
     process_data_func: take a dataframe as input and return a chord progression
         e.g. process_data_func = lambda df: some_func(df, *args)
@@ -131,7 +142,7 @@ def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_sho
     for beg, end in phrase_list:
         df = df_all[beg:end]
         if augment:
-            df_list = transpose_phrase(df)
+            df_list = augment_func(df)
         else:
             df_list = [df]
 

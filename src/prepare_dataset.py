@@ -99,7 +99,7 @@ def transpose_phrase_to_c_maj_or_a_min(df):
     return [transposed_df]
 
 
-def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False):
+def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetitions=False):
     df_all = pd.read_csv(all_csv)
     dataset = []
 
@@ -123,7 +123,7 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
     final_dataset = []
     for progression in dataset:
         chord_list = progression.split(" ")
-        if skip_repetions:
+        if skip_repetitions:
             chord_list = [k for k, g in itertools.groupby(chord_list)]
         if len(chord_list) > skip_short_phrases:
             final_dataset.append(" ".join(chord_list))
@@ -131,7 +131,7 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
     return final_dataset
 
 
-def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetions=False, augment_func=transpose_phrase):
+def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetitions=False, augment_func=transpose_phrase):
     """
     process_data_func: take a dataframe as input and return a chord progression
         e.g. process_data_func = lambda df: some_func(df, *args)
@@ -153,7 +153,7 @@ def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_sho
     final_dataset = []
     for progression in dataset:
         chord_list = progression.split(" ")
-        if skip_repetions:
+        if skip_repetitions:
             chord_list = [k for k, g in itertools.groupby(chord_list)]
         if len(chord_list) > skip_short_phrases:
             final_dataset.append(" ".join(chord_list))
@@ -164,7 +164,7 @@ def join_list(note_set):
     return "_".join([str(n) for n in note_set])
 
 
-def convert_to_note_set(row, add_root=True, sort_notes=False):
+def convert_to_note_set(row, add_root=True, sort_notes=False, root_only=False):
     if pd.isnull(row["numeral"]):
         return np.nan
 
@@ -189,6 +189,19 @@ def convert_to_note_set(row, add_root=True, sort_notes=False):
     note_set = get_note_set(quality, major, form,
                             figbass, changes, use_changes=False)
 
+    if root_only:
+        major_key_list = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+        minor_key_list = ["c", "c#", "d", "eb", "e", "f", "f#", "g", "g#", "a", "bb", "b"]
+        if quality == "minor":
+            return minor_key_list[root_number]
+        elif quality == "major":
+            return major_key_list[root_number]
+        local_key_minor = local_key == local_key.lower()
+        if local_key_minor:
+            return minor_key_list[root_number]
+        else:
+            return major_key_list[root_number]
+
     if add_root:
         note_set = [(n + root_number) % 12 for n in note_set]
     else:
@@ -210,3 +223,11 @@ def dataframe_to_note_set_progression(df):
     note_set_progression = df.apply(
         lambda row: convert_to_note_set(row), axis=1)
     return " ".join([note for note in note_set_progression if not pd.isnull(note)])
+
+
+def dataframe_to_root_progression(df):
+    root_progression = df.apply(
+        lambda row: convert_to_note_set(row, root_only=True),
+        axis=1
+    )
+    return " ".join([note for note in root_progression if not pd.isnull(note)])

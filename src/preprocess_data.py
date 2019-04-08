@@ -1,3 +1,4 @@
+from collections import Counter
 import re
 import numpy as np
 import itertools
@@ -334,33 +335,42 @@ def seperate_root(note_set, output="all", is_sorted=False):
         if len(note_set) > 0:
             sub_root = tuple((note_set - note_set[0]) % 12)
             if sub_root in root_first_chords:
-                possible_chord_list.append("{}{}".format(
-                    note_name_list[note_set[0]], root_first_chords[sub_root]))
+                possible_chord_list.append(
+                    (note_name_list[note_set[0]], root_first_chords[sub_root]))
 
         if len(note_set) > 1:
             sub_root = tuple((note_set - note_set[1]) % 12)
             if sub_root in root_second_chords:
-                possible_chord_list.append("{}{}".format(
-                    note_name_list[note_set[1]], root_second_chords[sub_root]))
+                possible_chord_list.append(
+                    (note_name_list[note_set[1]], root_second_chords[sub_root]))
 
         if len(note_set) > 2:
             sub_root = tuple((note_set - note_set[2]) % 12)
             if sub_root in root_third_chords:
-                possible_chord_list.append("{}{}".format(
-                    note_name_list[note_set[2]], root_third_chords[sub_root]))
+                possible_chord_list.append(
+                    (note_name_list[note_set[2]], root_third_chords[sub_root]))
 
         if len(note_set) > 3:
             sub_root = tuple((note_set - note_set[3]) % 12)
             if sub_root in root_forth_chords:
-                possible_chord_list.append("{}{}".format(
-                    note_name_list[note_set[3]], root_forth_chords[sub_root]))
+                possible_chord_list.append(
+                    (note_name_list[note_set[3]], root_forth_chords[sub_root]))
 
     if len(possible_chord_list) == 0:
         raise Exception("Unknown chords:", note_set)
-    possible_chord_list = sorted(possible_chord_list)
+
+    chord_list = []
+    for chord in possible_chord_list:
+        if output == "root_only":
+            chord_list.append(chord[0])
+        else:
+            chord_list.append("{}{}".format(chord[0], chord[1]))
+        
+
+    possible_chord_list = sorted(chord_list)
     if output == "first":
         return possible_chord_list[0]
-    elif output == "root":
+    elif output == "root_position":
         final_chord_list = []
         for chord in possible_chord_list:
             is_inversion = False
@@ -373,6 +383,9 @@ def seperate_root(note_set, output="all", is_sorted=False):
         if len(final_chord_list) == 0:
             final_chord_list.append(possible_chord_list[0])
         return "/".join(final_chord_list)
+    elif output == "root_only":
+        most_common, _ = Counter(possible_chord_list).most_common(1)[0]
+        return most_common
     else:
         return "/".join(possible_chord_list)
 

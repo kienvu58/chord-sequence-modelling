@@ -5,6 +5,9 @@ class ModelI:
     def log_score(self, progression):
         raise NotImplementedError()
 
+    def predict(self, context):
+        raise NotImplementedError()
+
     def save(self, filename):
         raise NotImplementedError()
 

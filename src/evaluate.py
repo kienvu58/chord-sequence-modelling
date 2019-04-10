@@ -32,3 +32,26 @@ def evaluate(model, corpus):
 
     pp = perplexity(log_score_list)
     return pp
+
+
+def accuracy(model, corpus):
+    n_predictions = 0
+    n_correct_preds = 0
+    for s in corpus:
+        if not isinstance(s, list):
+            s = s.split(" ")
+        len_s = len(s)
+        for i in range(len_s+1):
+            context = s[:i]
+            context = ["<s>"] + context
+            next_chord = s[i] if i < len_s else "</s>"
+            n_predictions += 1
+            pred = model.predict(context)
+            if pred == next_chord:
+                n_correct_preds += 1
+            # else:
+            #     print(pred, next_chord)
+    
+    return n_correct_preds / n_predictions
+
+        

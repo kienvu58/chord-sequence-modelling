@@ -114,6 +114,16 @@ class LSTMModel(ModelI):
                 logging.info("\tValidation loss: {:.3f}, perplexity: {:.2f}".format(
                     val_loss, val_perplexity))
 
+    def predict(self, context):
+        context = self.vocab.encode_sentence(context, False, False)
+        x = torch.LongTensor(context)
+        if torch.cuda.is_available():
+            x = x.cuda()
+        prob = self.model.predict(x).exp()
+        _, next_index = prob.max(-1)
+        next_index = next_index.item()
+        return self.vocab[next_index]
+
     def log_score(self, progression):
         if not isinstance(progression, list):
             progression = progression.split(" ")

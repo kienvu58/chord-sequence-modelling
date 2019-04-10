@@ -164,6 +164,15 @@ def join_list(note_set):
     return "_".join([str(n) for n in note_set])
 
 
+def convert_to_figured_bass(row):
+    note_set = convert_to_note_set(row)
+    if not isinstance(note_set, str):
+        return np.nan
+    bass_note_index = int(note_set.split("_")[0])
+    major_key_list = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+    return major_key_list[bass_note_index]
+
+
 def convert_to_note_set(row, add_root=True, sort_notes=False, root_only=False):
     if pd.isnull(row["numeral"]):
         return np.nan
@@ -231,3 +240,8 @@ def dataframe_to_root_progression(df):
         axis=1
     )
     return " ".join([note for note in root_progression if not pd.isnull(note)])
+
+
+def dataframe_to_figured_bass_progression(df):
+    progression = df.apply(convert_to_figured_bass, axis=1)
+    return " ".join([note for note in progression if not pd.isnull(note)])

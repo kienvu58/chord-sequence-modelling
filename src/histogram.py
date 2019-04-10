@@ -17,6 +17,7 @@ from prepare_dataset import (dataframe_to_note_set_progression,
                              get_movement_dataset,
                              dataframe_to_note_set_progression_sorted,
                              dataframe_to_root_progression,
+                             dataframe_to_figured_bass_progression,
                              transpose_phrase_to_c_maj_or_a_min)
 
 SHORT_PHRASE_LEN = 1
@@ -34,15 +35,18 @@ def histogram_numerals():
     table = np.zeros((7, 9))
     lut = {
         0: ["I", "i"],
-        1: ["II", "ii"],
-        2: ["III", "iii"],
-        3: ["IV", "iv"],
-        4: ["V", "v"],
-        5: ["VI", "vi"],
-        6: ["VII", "vii"],
+        3: ["II", "ii"],
+        6: ["III", "iii"],
+        2: ["IV", "iv"],
+        5: ["V", "v"],
+        1: ["VI", "vi"],
+        4: ["VII", "vii"],
     }
 
     for i in range(n_chords-1):
+        if not df.loc[i]["local_key"] == df.loc[i]["local_key"].lower():
+            continue
+
         will_modulate = df.loc[i]["local_key"] != df.loc[i+1]["local_key"]
         is_relative_chord = not pd.isnull(df.loc[i]["relativeroot"])
         next_is_relative_chord = not pd.isnull(df.loc[i+1]["relativeroot"])
@@ -89,13 +93,23 @@ def print_result_histogram_numerals(table, n_chords):
     for i in range(7):
         table[i][i] = 0.0
 
-    n_transitions = np.sum(table[:-1, :])
-    columns = ["I", "II", "III", "IV", "V", "VI", "VII", "END", "MOD"]
-    rows = ["I", "II", "III", "IV", "V", "VI", "VII"]
+    threshold = 0
+    table[table < threshold] = 0.0
+
+    n_transitions = np.sum(table[:, :-2])
+    rows = ["I", "vi", "IV", "ii", "vii", "V", "iii"]
+    columns = rows + ["END", "MOD"]
 
     print("Transition ratio:", n_transitions/(n_chords-1))
     row_sum = np.sum(table, axis=1)
+
+    tmp_rows = []
+    for i, row in enumerate(rows):
+        tmp_rows.append("{} ({:d})".format(row, int(row_sum[i])))
+    rows = tmp_rows
+
     table = table / row_sum[:, None]
+    table[np.isnan(table)] = 0.0
     df = pd.DataFrame(table)
     df["sum"] = pd.Series(row_sum)
     print(df)
@@ -108,9 +122,9 @@ def print_result_histogram_numerals(table, n_chords):
         for j in range(table.shape[1]):
             plt.text(j, i, "{:.1f}".format(
                 table[i][j]*100), ha="center", va="center", color="w")
-
+    print(n_transitions)
     plt.savefig(
-        "figures/diatonic_scale_transitions ({:.1f}%).pdf".format(n_transitions/(n_chords-1)*100))
+        "figures/diatonic_scale_transitions_minor ({:.1f}%).pdf".format(n_transitions/(n_chords-1)*100))
 
 
 def histogram_chords(chord_output, is_sorted=True):
@@ -322,11 +336,11 @@ def histogram_transposed_local_key_chords(chord_output, is_sorted=True):
     return table, unique_chords, modulation_list
 
 
-def histogram_transposed_local_key_root():
+def histogram_transposed_local_key_root(process_data_func=dataframe_to_root_progression):
     phrase_list, _, _ = split_data_by_phrase(
         "data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
     dataset, modulation_list = get_dataset_and_modulation(
-        "data/all_annotations.csv", phrase_list, dataframe_to_root_progression,
+        "data/all_annotations.csv", phrase_list, process_data_func,
         skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
 
     unique_chords = set()
@@ -397,12 +411,17 @@ def print_histogram_modulation(modulation_list, name="root_modulations", text=Tr
     plt.savefig("figures/{}{} ({:d}).pdf".format(name, SUFFIX, int(n_modulations)))
 
 
-table, unique_chords, modulation_list = histogram_transposed_local_key_root()
-print_result_histogram_chords(
-    table, unique_chords, name="root_transitions", text=True)
-print_histogram_modulation(modulation_list)
+# table, unique_chords, modulation_list = histogram_transposed_local_key_root(dataframe_to_figured_bass_progression)
+# print_result_histogram_chords(
+#     table, unique_chords, name="figured_bass_transitions", text=True)
+# print_histogram_modulation(modulation_list, name="figured_bass_modulations")
 
 # print_histogram_root()
+
+# table, unique_chords, modulation_list = histogram_transposed_local_key_root()
+# print_result_histogram_chords(
+#     table, unique_chords, name="root_transitions", text=True)
+# print_histogram_modulation(modulation_list)
 
 
 # table, unique_chords, modulation_list = histogram_transposed_local_key_chords("root_only", is_sorted=True)
@@ -412,5 +431,5 @@ print_histogram_modulation(modulation_list)
 # table, unique_chords = histogram_chords()
 # print_result_histogram_chords(table, unique_chords)
 
-# table, n_chords = histogram_numerals()
-# print_result_histogram_numerals(table, n_chords)
+table, n_chords = histogram_numerals()
+print_result_histogram_numerals(table, n_chords)

@@ -17,9 +17,12 @@ class Vocab:
         for word in dataset_unique:
             self.add(word)
 
-    def encode_sentence(self, sent):
+    def encode_sentence(self, sent, pad_left=True, pad_right=True):
         sent = [self[word] for word in sent]
-        sent = [0] + sent + [1]
+        if pad_left:
+            sent = [0] + sent
+        if pad_right:
+            sent = sent + [1]
         return sent
 
     def __len__(self):

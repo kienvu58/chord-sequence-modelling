@@ -9,7 +9,7 @@ from prepare_dataset import (dataframe_to_note_set_progression,
                              dataframe_to_note_set_progression_sorted)
 from models.ngram_model import NgramModel
 from models.lstm_model import LSTMModel
-from evaluate import evaluate
+from evaluate import evaluate, accuracy
 from vocab import Vocab
 import logging
 from voiceleading_utilities import nonbijective_vl
@@ -130,7 +130,9 @@ def ngram_model(train, val, test):
     print("generated progression:", len(progression),
           convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
-    generate_score_and_audio(progression, "ngram", "output")
+
+    print("accuracy:", accuracy(model, test))
+    # generate_score_and_audio(progression, "ngram", "output")
 
 
 def lstm_model(train, val, test):
@@ -155,7 +157,8 @@ def lstm_model(train, val, test):
     print("generated progression:", len(progression),
           convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
-    generate_score_and_audio(progression, "lstm", "output")
+    print("accuracy:", accuracy(model, test))
+    # generate_score_and_audio(progression, "lstm", "output")
 
 
 def load_train_val_test(func, level="phrase"):
@@ -187,9 +190,9 @@ def calculate_nonbijective_vl():
 # save_phrase_datasets(process_data_func=dataframe_to_note_set_progression)
 # save_movement_datasets(process_data_func=dataframe_to_note_set_progression)
 # convert_phrases()
-convert_phrases_to_root_progression()
+# convert_phrases_to_root_progression()
 # generate_audio()
 # calculate_nonbijective_vl()
-# train, val, test = load_train_val_test(load_dataset, level="phrase")
+train, val, test = load_train_val_test(load_dataset, level="phrase")
 # ngram_model(train, val, test)
-# lstm_model(train, val, test)
+lstm_model(train, val, test)

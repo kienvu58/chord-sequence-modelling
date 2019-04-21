@@ -117,7 +117,11 @@ def get_root(global_key, local_key, numeral, relativeroot=None):
     return root
 
 
-def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, relativeroot=None):
+def root_upper(root):
+    return root[0].upper() + root[1:]
+
+
+def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, relativeroot=None, no_inversion=False):
     # mode_list = ["maj", "min"]
     # root_list = ["Cb", "C", "C#", "Db", "D", "D#", "Eb", "E", "E#", "Fb", "F", "F#",
     #              "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B", "B#"]
@@ -136,8 +140,23 @@ def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, rela
             chord_name = get_chord_name_from_key_and_numeral(
                 local_key_name, numeral)
 
+        if form == "%":
+            if figbass not in ["65", "43", "42", "2"]:
+                figbass = "7"
+
         if form is not None:
-            chord_name += form
+            root = root_upper(chord_name)
+            chord_name = root + form
+        else:
+            if chord_name == chord_name.lower():
+                root = root_upper(chord_name)
+                chord_name = root + "m"
+
+        if no_inversion:
+            if figbass in ["9", "7", "65", "43", "42", "2"]:
+                figbass = "7"
+            if figbass in ["6", "64"]:
+                figbass = None
 
         if figbass is not None:
             chord_name += figbass
@@ -148,6 +167,7 @@ def get_chord_name(global_key, local_key, numeral, form=None, figbass=None, rela
             local_key_name = get_chord_name_from_key_and_numeral(
                 local_key_name, relativeroot)
 
+        local_key_name = root_upper(local_key_name)
         chord_name = local_key_name + numeral + "6"
 
     return chord_name
@@ -390,7 +410,7 @@ def seperate_root(note_set, output="all", is_sorted=False):
         return "/".join(possible_chord_list)
 
 
-def get_note_set(quality, major, form, figbass, changes, use_changes=True):
+def get_note_set(quality, major, form, figbass, changes, use_changes=True, use_inversion=True, use_ninth=True):
     """
         quality: major | minor | Ger | It | Fr derived from numeral
         major: True | False whether local key is major or minor
@@ -463,14 +483,19 @@ def get_note_set(quality, major, form, figbass, changes, use_changes=True):
     # nineth
     elif len(inversion) == 5:
         # dominant minor ninth
-        note_set = [0, 4, 7, 10, 1]
+        if use_ninth:
+            note_set = [0, 4, 7, 10, 1]
+        else:
+            note_set = [0, 4, 7, 10]
+            inversion = [0, 1, 2, 3]
     else:
         raise ValueError("Unknown chord: ", quality, form, inversion)
 
     if use_changes:
         note_set = apply_changes(note_set, changes, major)
 
-    note_set = apply_inversion(note_set, inversion)
+    if use_inversion:
+        note_set = apply_inversion(note_set, inversion)
 
     return note_set
 

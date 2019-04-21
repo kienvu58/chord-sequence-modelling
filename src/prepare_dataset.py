@@ -2,7 +2,7 @@ import itertools
 import pandas as pd
 import random
 import numpy as np
-from preprocess_data import get_root, get_key_number, get_note_set
+from preprocess_data import get_root, get_key_number, get_note_set, get_chord_name
 
 
 def split_data_by_movement(phrase_txt, split_ratio=[7, 1, 2], skip_short_phrases=None):
@@ -131,7 +131,8 @@ def get_movement_dataset(all_csv, movement_phrase_list, process_data_func, augme
     return final_dataset
 
 
-def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_short_phrases=0, skip_repetitions=False, augment_func=transpose_phrase):
+def get_dataset(all_csv, phrase_list, process_data_func, augment=False,
+                skip_short_phrases=0, skip_repetitions=False, skip_double_repetitions=False, augment_func=transpose_phrase):
     """
     process_data_func: take a dataframe as input and return a chord progression
         e.g. process_data_func = lambda df: some_func(df, *args)
@@ -155,6 +156,24 @@ def get_dataset(all_csv, phrase_list, process_data_func, augment=False, skip_sho
         chord_list = progression.split(" ")
         if skip_repetitions:
             chord_list = [k for k, g in itertools.groupby(chord_list)]
+
+        if skip_double_repetitions:
+            n = len(chord_list)
+            i = 0
+            tmp_chord_list = []
+            while i < n:
+                if 1 < i and i+1 < n:
+                    if chord_list[i-2] == chord_list[i] and chord_list[i-1] == chord_list[i+1]:
+                        i += 2
+                        continue
+                    else:
+                        tmp_chord_list.append(chord_list[i])
+                        i += 1
+                else:
+                    tmp_chord_list.append(chord_list[i])
+                    i += 1
+            chord_list = tmp_chord_list
+
         if len(chord_list) > skip_short_phrases:
             final_dataset.append(" ".join(chord_list))
     return final_dataset
@@ -164,16 +183,36 @@ def join_list(note_set):
     return "_".join([str(n) for n in note_set])
 
 
+def chord_name(row):
+    if pd.isnull(row["numeral"]):
+        return np.nan
+
+    global_key = row["global_key"]
+    local_key = row["local_key"]
+    numeral = row["numeral"]
+    form = row["form"] if not pd.isnull(row["form"]) else None
+    figbass = str(int(row["figbass"])) if not pd.isnull(
+        row["figbass"]) else None
+    relativeroot = row["relativeroot"] if not pd.isnull(
+        row["relativeroot"]) else None
+    changes = str(row["changes"]) if not pd.isnull(row["changes"]) else None
+
+    name = get_chord_name(global_key, local_key, numeral,
+                          form, figbass, relativeroot, True)
+    return name
+
+
 def convert_to_figured_bass(row):
     note_set = convert_to_note_set(row)
     if not isinstance(note_set, str):
         return np.nan
     bass_note_index = int(note_set.split("_")[0])
-    major_key_list = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+    major_key_list = ["C", "Db", "D", "Eb", "E",
+                      "F", "F#", "G", "Ab", "A", "Bb", "B"]
     return major_key_list[bass_note_index]
 
 
-def convert_to_note_set(row, add_root=True, sort_notes=False, root_only=False):
+def convert_to_note_set(row, add_root=True, sort_notes=False, root_only=False, use_inversion=True, use_ninth=True):
     if pd.isnull(row["numeral"]):
         return np.nan
 
@@ -196,11 +235,13 @@ def convert_to_note_set(row, add_root=True, sort_notes=False, root_only=False):
     root = get_root(global_key, local_key, numeral, relativeroot)
     root_number = get_key_number(root)
     note_set = get_note_set(quality, major, form,
-                            figbass, changes, use_changes=False)
+                            figbass, changes, use_changes=False, use_inversion=use_inversion, use_ninth=use_ninth)
 
     if root_only:
-        major_key_list = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
-        minor_key_list = ["c", "c#", "d", "eb", "e", "f", "f#", "g", "g#", "a", "bb", "b"]
+        major_key_list = ["C", "Db", "D", "Eb", "E",
+                          "F", "F#", "G", "Ab", "A", "Bb", "B"]
+        minor_key_list = ["c", "c#", "d", "eb", "e",
+                          "f", "f#", "g", "g#", "a", "bb", "b"]
         if quality == "minor":
             return minor_key_list[root_number]
         elif quality == "major":
@@ -228,6 +269,12 @@ def dataframe_to_note_set_progression_sorted(df):
     return " ".join([note for note in note_set_progression if not pd.isnull(note)])
 
 
+def dataframe_to_note_set_progression_no_inversion_no_ninth(df):
+    note_set_progression = df.apply(
+        lambda row: convert_to_note_set(row, use_inversion=False, use_ninth=False), axis=1)
+    return " ".join([note for note in note_set_progression if not pd.isnull(note)])
+
+
 def dataframe_to_note_set_progression(df):
     note_set_progression = df.apply(
         lambda row: convert_to_note_set(row), axis=1)
@@ -245,3 +292,8 @@ def dataframe_to_root_progression(df):
 def dataframe_to_figured_bass_progression(df):
     progression = df.apply(convert_to_figured_bass, axis=1)
     return " ".join([note for note in progression if not pd.isnull(note)])
+
+
+def dataframe_to_chord_name_progression(df):
+    progression = df.apply(chord_name, axis=1)
+    return " ".join([chord for chord in progression if not pd.isnull(chord)])

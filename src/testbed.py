@@ -1,4 +1,5 @@
 from audio.generate import generate_score_and_audio, generate_bass_notes
+import itertools
 import pandas as pd
 from preprocess_data import convert_to_chord_name
 from prepare_dataset import (dataframe_to_note_set_progression,
@@ -6,6 +7,9 @@ from prepare_dataset import (dataframe_to_note_set_progression,
                              split_data_by_movement,
                              get_movement_dataset,
                              dataframe_to_root_progression,
+                             dataframe_to_note_set_progression_no_inversion_no_ninth,
+                             dataframe_to_chord_name_progression,
+                             transpose_phrase_to_c_maj_or_a_min,
                              dataframe_to_note_set_progression_sorted)
 from models.ngram_model import NgramModel
 from models.lstm_model import LSTMModel
@@ -18,6 +22,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 SHORT_PHRASE_LEN = 1
 SKIP_REPETITIONS = True
+SKIP_DOUBLE_REPETITIONS = True
 
 
 def save_movement_datasets(process_data_func=dataframe_to_note_set_progression):
@@ -26,13 +31,13 @@ def save_movement_datasets(process_data_func=dataframe_to_note_set_progression):
 
     train_dataset = get_movement_dataset(
         "data/all_annotations.csv", train_phrases, process_data_func, augment=True,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
     val_dataset = get_movement_dataset(
         "data/all_annotations.csv", val_phrases, process_data_func, augment=False,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
     test_dataset = get_movement_dataset(
         "data/all_annotations.csv", test_phrases, process_data_func, augment=False,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
 
     with open("data/train_movements.txt", "w") as f:
         f.write("\n".join(train_dataset))
@@ -42,33 +47,59 @@ def save_movement_datasets(process_data_func=dataframe_to_note_set_progression):
         f.write("\n".join(test_dataset))
 
 
-def save_phrase_datasets(process_data_func=dataframe_to_note_set_progression):
+def save_phrase_datasets(process_data_func=dataframe_to_note_set_progression, prefix=""):
     train_phrases, val_phrases, test_phrases = split_data_by_phrase(
         "data/phrases.txt")
 
     train_dataset = get_dataset(
         "data/all_annotations.csv", train_phrases, process_data_func, augment=True,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
     val_dataset = get_dataset(
         "data/all_annotations.csv", val_phrases, process_data_func, augment=False,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
     test_dataset = get_dataset(
         "data/all_annotations.csv", test_phrases, process_data_func, augment=False,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
 
-    with open("data/train_phrases.txt", "w") as f:
+    with open("data/train_{}phrases.txt".format(prefix), "w") as f:
         f.write("\n".join(train_dataset))
-    with open("data/val_phrases.txt", "w") as f:
+    with open("data/val_{}phrases.txt".format(prefix), "w") as f:
         f.write("\n".join(val_dataset))
-    with open("data/test_phrases.txt", "w") as f:
+    with open("data/test_{}phrases.txt".format(prefix), "w") as f:
         f.write("\n".join(test_dataset))
+
+def save_transposed_datasets():
+    train_phrases, val_phrases, test_phrases = split_data_by_phrase(
+        "data/phrases.txt")
+
+    process_data_func = dataframe_to_note_set_progression
+    augment_func = transpose_phrase_to_c_maj_or_a_min
+
+    train_dataset = get_dataset(
+        "data/all_annotations.csv", train_phrases, process_data_func, augment=True,
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS, augment_func=augment_func)
+    val_dataset = get_dataset(
+        "data/all_annotations.csv", val_phrases, process_data_func, augment=True,
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS, augment_func=augment_func)
+    test_dataset = get_dataset(
+        "data/all_annotations.csv", test_phrases, process_data_func, augment=True,
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS, augment_func=augment_func)
+
+    with open("data/train_transposed_phrases.txt", "w") as f:
+        f.write("\n".join(train_dataset))
+    with open("data/val_transposed_phrases.txt", "w") as f:
+        f.write("\n".join(val_dataset))
+    with open("data/test_transposed_phrases.txt", "w") as f:
+        f.write("\n".join(test_dataset))
+
+
 
 def convert_phrases_to_root_progression():
     phrase_list, _, _ = split_data_by_phrase(
         "data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
     dataset = get_dataset(
         "data/all_annotations.csv", phrase_list, dataframe_to_root_progression,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
 
     with open("data/phrases_root.txt", "w") as f:
         f.write("\n".join(dataset))
@@ -79,7 +110,7 @@ def convert_phrases():
         "data/phrases.txt", split_ratio=[1, 0, 0], shuffle=False)
     dataset = get_dataset(
         "data/all_annotations.csv", phrase_list, dataframe_to_note_set_progression,
-        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS)
+        skip_short_phrases=SHORT_PHRASE_LEN, skip_repetitions=SKIP_REPETITIONS, skip_double_repetitions=SKIP_DOUBLE_REPETITIONS)
 
     with open("data/phrases_note_set.txt", "w") as f:
         f.write("\n".join(dataset))
@@ -128,16 +159,27 @@ def ngram_model(train, val, test):
     print("ngram model perplexity:", evaluate(model, test))
     progression = model.generate(10)
     print("generated progression:", len(progression),
-          convert_to_chord_name(progression))
+        progression)
+        #   convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
 
-    print("accuracy:", accuracy(model, test))
+    # print("accuracy:", accuracy(model, test))
     # generate_score_and_audio(progression, "ngram", "output")
 
+def generate_vocab():
+    vocab = Vocab()
+    note_list = ["A", "B", "C", "D", "E", "F", "G"]
+    accidental_list = ["", "b", "#"]
+    chord_type_list = ["", "m", "+", "o", "7", "m7", "M7", "o7", "%7", "+7", "It6", "Ger6", "Fr6"]
+
+    for chord in itertools.product(note_list, accidental_list, chord_type_list):
+        vocab.add("".join(chord))
+    return vocab
 
 def lstm_model(train, val, test):
-    vocab = Vocab()
-    vocab.from_dataset(train+val+test)
+    # vocab = Vocab()
+    # vocab.from_dataset(train+val+test)
+    vocab = generate_vocab()
 
     hparams = {
         "vocab": vocab,
@@ -155,9 +197,11 @@ def lstm_model(train, val, test):
     print("lstm model perplexity:", evaluate(model, test))
     progression = model.generate(10)
     print("generated progression:", len(progression),
-          convert_to_chord_name(progression))
+        progression)
+        #   convert_to_chord_name(progression))
     print("generated progression perplexity:", evaluate(model, [progression]))
     print("accuracy:", accuracy(model, test))
+    print("vocab size:", len(vocab))
     # generate_score_and_audio(progression, "lstm", "output")
 
 
@@ -193,6 +237,10 @@ def calculate_nonbijective_vl():
 # convert_phrases_to_root_progression()
 # generate_audio()
 # calculate_nonbijective_vl()
-train, val, test = load_train_val_test(load_dataset, level="phrase")
-# ngram_model(train, val, test)
+# save_transposed_datasets()
+# save_phrase_datasets(process_data_func=dataframe_to_note_set_progression_no_inversion_no_ninth, prefix="no_inversion_")
+# train, val, test = load_train_val_test(load_dataset, level="no_inversion_phrase")
+# save_phrase_datasets(process_data_func=dataframe_to_chord_name_progression, prefix="chord_name_")
+train, val, test = load_train_val_test(load_dataset, level="chord_name_phrase")
+ngram_model(train, val, test)
 lstm_model(train, val, test)

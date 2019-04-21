@@ -26,10 +26,13 @@ class Vocab:
         return sent
 
     def __len__(self):
-        return len(self._token_to_index)
+        return len(self._index_to_token)
 
     def __getitem__(self, key):
         if isinstance(key, int):
             return self._index_to_token[key]
         else:
             return self._token_to_index[key]
+
+    def __repr__(self):
+        return " ".join(sorted(self._index_to_token))

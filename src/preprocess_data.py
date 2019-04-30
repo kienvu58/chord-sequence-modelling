@@ -117,6 +117,68 @@ def get_root(global_key, local_key, numeral, relativeroot=None):
     return root
 
 
+def chord_name_to_note_set(chord_name):
+    pattern = re.compile(r"""(?P<key>[A-G](b|\#)?)
+                             (?P<form>([m%o+M]|Ger6|It6|Fr6))?
+                             (?P<figbass>(7))?
+                            """, re.VERBOSE)
+
+    match = pattern.match(chord_name)
+    key = match.group("key")
+    form = match.group("form")
+    figbass = match.group("figbass")
+
+    note_set = None
+    if form == "Ger6":
+        note_set = [8, 0, 3, 6]
+    if form == "It6": 
+        note_set = [8, 0, 6]
+    if form == "Fr6":
+        note_set = [8, 0, 2, 6]
+    if figbass is None:
+        if form is None:
+            # major triad
+            note_set = [0, 4, 7]
+        if form == "m":
+            # minor triad
+            note_set = [0, 3, 7]
+        if form == "o":
+            # diminished triad
+            note_set = [0, 3, 6]
+        if form == "+":
+            # augmented triad
+            note_set = [0, 4, 8]
+    if figbass == "7":
+        if form is None:
+            # dominant seventh
+            note_set = [0, 4, 7, 10]
+        if form == "m":
+            # minor seventh
+            note_set = [0, 3, 7, 10]
+        if form == "M":
+            # major seventh
+            note_set = [0, 4, 7, 11]
+        if form == "+":
+            # augmented seventh
+            note_set = [0, 4, 8, 11]
+        if form == "%":
+            # half-diminished seventh
+            note_set = [0, 3, 6, 10]
+        if form == "o":
+            # diminished seventh
+            note_set = [0, 3, 6, 9]
+
+    if note_set is None or key is None:
+        raise ValueError("Unknown chord!", chord_name)
+
+    root = get_key_number(key)
+
+    note_set = np.array(note_set)
+    note_set = tuple((note_set + root) % 12)
+    return note_set
+    
+
+
 def root_upper(root):
     return root[0].upper() + root[1:]
 

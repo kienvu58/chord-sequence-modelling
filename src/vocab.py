@@ -25,6 +25,9 @@ class Vocab:
             sent = sent + [1]
         return sent
 
+    def all_tokens(self):
+        return self._index_to_token
+
     def __len__(self):
         return len(self._index_to_token)
 

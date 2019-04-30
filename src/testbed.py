@@ -1,4 +1,5 @@
 from audio.generate import generate_score_and_audio, generate_bass_notes
+from misc import *
 import itertools
 import pandas as pd
 from preprocess_data import convert_to_chord_name
@@ -13,6 +14,7 @@ from prepare_dataset import (dataframe_to_note_set_progression,
                              dataframe_to_note_set_progression_sorted)
 from models.ngram_model import NgramModel
 from models.lstm_model import LSTMModel
+from models.general_lstm_model import GeneralLSTMModel
 from evaluate import evaluate, accuracy
 from vocab import Vocab
 import logging
@@ -166,15 +168,36 @@ def ngram_model(train, val, test):
     # print("accuracy:", accuracy(model, test))
     # generate_score_and_audio(progression, "ngram", "output")
 
-def generate_vocab():
-    vocab = Vocab()
-    note_list = ["A", "B", "C", "D", "E", "F", "G"]
-    accidental_list = ["", "b", "#"]
-    chord_type_list = ["", "m", "+", "o", "7", "m7", "M7", "o7", "%7", "+7", "It6", "Ger6", "Fr6"]
 
-    for chord in itertools.product(note_list, accidental_list, chord_type_list):
-        vocab.add("".join(chord))
-    return vocab
+def general_lstm_model(train, val, test):
+    # vocab = Vocab()
+    # vocab.from_dataset(train+val+test)
+    vocab = generate_vocab()
+
+    hparams = {
+        "vocab": vocab,
+        "pretrained_embedding": None,
+        "freeze_embedding": True,
+        "embedding_dim": 12,
+        "hidden_dim": 128,
+        "n_epochs": 5,
+        "batch_size": 32,
+        "lr": 0.001,
+        "num_layers": 1,
+        "dropout": 0,
+    }
+
+    model = GeneralLSTMModel(hparams)
+    model.fit(train, val)
+    print("lstm model perplexity:", evaluate(model, test))
+    progression = model.generate(10)
+    print("generated progression:", len(progression),
+        progression)
+        #   convert_to_chord_name(progression))
+    print("generated progression perplexity:", evaluate(model, [progression]))
+    print("accuracy:", accuracy(model, test))
+    print("vocab size:", len(vocab))
+    # generate_score_and_audio(progression, "lstm", "output")
 
 def lstm_model(train, val, test):
     # vocab = Vocab()
@@ -243,4 +266,4 @@ def calculate_nonbijective_vl():
 # save_phrase_datasets(process_data_func=dataframe_to_chord_name_progression, prefix="chord_name_")
 train, val, test = load_train_val_test(load_dataset, level="chord_name_phrase")
 ngram_model(train, val, test)
-lstm_model(train, val, test)
+general_lstm_model(train, val, test)

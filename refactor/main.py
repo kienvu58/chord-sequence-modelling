@@ -22,6 +22,9 @@ from allennlp.modules.similarity_functions import MultiHeadedSimilarity
 from allennlp.common.file_utils import cached_path
 from allennlp.data.iterators import BucketIterator
 from allennlp.training.trainer import Trainer
+import logging
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 torch.manual_seed(1)
 
@@ -42,6 +45,7 @@ def train(
         model = model.cuda(cuda_device)
     else:
         cuda_device = -1
+    print(cuda_device)
 
     optimizer = optim.Adam(model.parameters(), lr=hparams["lr"])
 
@@ -83,6 +87,12 @@ HIDDEN_DIM = 128
 token_embedding = Embedding(
     num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=EMBEDDING_DIM
 )
+
+# with open("saved_models/word2vec.th", "rb") as f:
+#     token_embedding.load_state_dict(torch.load(f))
+
+# token_embedding.weight.requires_grad = False
+
 word_embedder = BasicTextFieldEmbedder({"tokens": token_embedding})
 
 contextualizer = PytorchSeq2SeqWrapper(
@@ -102,7 +112,7 @@ contextualizer = PytorchSeq2SeqWrapper(
 #     num_attention_heads=4,
 # )
 
-hparams = {"lr": 0.01, "batch_size": 32, "num_epochs": 5}
+hparams = {"lr": 0.005, "batch_size": 32, "num_epochs": 20}
 pred_metrics, model_saved_path = train(
     train_dataset, val_dataset, test_dataset, vocab, word_embedder, contextualizer, hparams
 )

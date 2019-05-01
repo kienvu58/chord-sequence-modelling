@@ -1,3 +1,6 @@
+import re
+
+
 def transpose_to_all_keys(df):
     assert len(df["global_key"].unique()) == 1
     original_key = df["global_key"].iloc[0]
@@ -202,3 +205,99 @@ def is_key_with_sharp(key):
         else:
             raise ValueError("Not supported key {}".format(key))
     return with_sharp
+
+
+def parse_chord_name(chord_name):
+    """
+    form_name_list = [
+        "major triad",
+        "minor triad",
+        "diminished triad",
+        "augmented triad",
+
+        "major seventh",
+        "minor seventh",
+        "dominant seventh",
+        "diminished seventh",
+        "half-diminised seventh",
+        "augmented seventh",
+
+        "German sixth",
+        "Italian sixth",
+        "French sixth",
+    ]
+    """
+
+    figbass_name_list = ["root", "first", "second", "third"]
+
+    seventh_figbass_list = ["7", "65", "43", "2"]
+    triad_figbass_list = [None, "6", "64"]
+
+    pattern = re.compile(
+        r"""(?P<key>[a-gA-G](b|\#)?)
+                             (?P<form>([%o+M]|Ger6|It6|Fr6))?
+                             (?P<figbass>(7|65|43|2|64|6))?
+                            """,
+        re.VERBOSE,
+    )
+
+    match = pattern.match(chord_name)
+    if match is None:
+        return None, None, None
+    key = match.group("key")
+    form = match.group("form")
+    figbass = match.group("figbass")
+
+    key_is_lowercase = key == key.lower()
+
+    if form == "Ger6" or form == "G":
+        return key, "German sixth", figbass_name_list[0]
+    elif form == "It6" or form == "I":
+        return key, "Italian sixth", figbass_name_list[0]
+    elif form == "Fr6" or form == "F":
+        return key, "French sixth", figbass_name_list[0]
+    else:
+        if figbass in seventh_figbass_list:
+            if form == "%":
+                form_name = "half-diminished seventh"
+            elif form == "o":
+                form_name = "diminished seventh"
+            elif form == "M":
+                form_name = "major seventh"
+            elif form == "+":
+                form_name = "augmented seventh"
+            elif key_is_lowercase:
+                form = "m"
+                form_name = "minor seventh"
+            else:
+                form_name = "dominant seventh"
+            figbass_name = figbass_name_list[seventh_figbass_list.index(figbass)]
+        else:
+            if form == "o":
+                form_name = "diminished triad"
+            elif form == "+":
+                form_name = "augmented triad"
+            elif key_is_lowercase:
+                form = "m"
+                form_name = "minor triad"
+            else:
+                form_name = "major triad"
+            figbass_name = figbass_name_list[triad_figbass_list.index(figbass)]
+
+    return key, (form, form_name), figbass_name
+
+
+def get_key_number(key):
+    key_list = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+    key = key.lower()
+    key = "c" if key == "b#" else key
+    key = "c#" if key == "db" else key
+    key = "d#" if key == "eb" else key
+    key = "e" if key == "fb" else key
+    key = "f" if key == "e#" else key
+    key = "f#" if key == "gb" else key
+    key = "g#" if key == "ab" else key
+    key = "a#" if key == "bb" else key
+    key = "b" if key == "cb" else key
+
+    return key_list.index(key)

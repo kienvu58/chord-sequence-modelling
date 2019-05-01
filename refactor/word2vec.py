@@ -4,6 +4,7 @@ from collections import Counter
 
 import torch
 import torch.optim as optim
+from allennlp.common.params import Params
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
 from allennlp.data.fields import LabelField
 from allennlp.data.instance import Instance
@@ -16,12 +17,19 @@ from overrides import overrides
 from torch.nn import CosineSimilarity
 from torch.nn import functional
 import numpy as np
+import logging
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 from scipy.stats import spearmanr
 
-EMBEDDING_DIM = 256
-BATCH_SIZE = 256
-CUDA_DEVICE = 0
+EMBEDDING_DIM = 128
+BATCH_SIZE = 128
+if torch.cuda.is_available():
+    CUDA_DEVICE = 0
+else:
+    CUDA_DEVICE = -1
+print(CUDA_DEVICE)
 
 @DatasetReader.register("skip_gram")
 class SkipGramReader(DatasetReader):
@@ -74,7 +82,7 @@ class SkipGramReader(DatasetReader):
 
                 if self.reject_probs:
                     tokens = self._subsample_tokens(tokens)
-                    print(tokens[:200])  # for debugging
+                    # print(tokens[:200])  # for debugging
 
                 for i, token in enumerate(tokens):
                     if token is None:
@@ -225,6 +233,57 @@ def evaluate_embeddings(embedding, vocab: Vocabulary):
 
 
 def main():
+    reader = SkipGramReader()
+    dataset = reader.read("data/cv/0/train.txt")
+    vocab = Vocabulary().from_files("data/vocabulary")
+    params = Params(params={})
+    vocab.extend_from_instances(params, dataset)
+
+    reader = SkipGramReader(vocab=vocab)
+    dataset = reader.read("data/cv/0/train.txt")
+    embedding_in = Embedding(num_embeddings=vocab.get_vocab_size('token_in'),
+                             embedding_dim=EMBEDDING_DIM)
+    embedding_out = Embedding(num_embeddings=vocab.get_vocab_size('token_out'),
+                              embedding_dim=EMBEDDING_DIM)
+    
+    
+    if CUDA_DEVICE > -1:
+        embedding_in = embedding_in.to(CUDA_DEVICE)
+        embedding_out = embedding_out.to(CUDA_DEVICE)
+    iterator = BasicIterator(batch_size=BATCH_SIZE)
+    iterator.index_with(vocab)
+
+    model = SkipGramModel(vocab=vocab,
+                          embedding_in=embedding_in,
+                          cuda_device=CUDA_DEVICE)
+
+    # model = SkipGramNegativeSamplingModel(
+    #     vocab=vocab,
+    #     embedding_in=embedding_in,
+    #     embedding_out=embedding_out,
+    #     neg_samples=10,
+    #     cuda_device=CUDA_DEVICE)
+
+    optimizer = optim.Adam(model.parameters())
+
+    trainer = Trainer(model=model,
+                      optimizer=optimizer,
+                      iterator=iterator,
+                      train_dataset=dataset,
+                      num_epochs=20,
+                      cuda_device=CUDA_DEVICE)
+    trainer.train()
+
+    with open("saved_models/word2vec.th", "wb") as f:
+        torch.save(embedding_in.state_dict(), f)
+
+    print(get_synonyms('C', embedding_in, vocab))
+    print(get_synonyms('G7', embedding_in, vocab))
+    print(get_synonyms('G', embedding_in, vocab))
+    print(get_synonyms('F', embedding_in, vocab))
+    print(get_synonyms('C7', embedding_in, vocab))
+
+def old_main():
     reader = SkipGramReader()
     text8 = reader.read('data/text8/text8')
 

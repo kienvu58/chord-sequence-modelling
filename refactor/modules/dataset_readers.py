@@ -57,7 +57,7 @@ class CpmDatasetReader(DatasetReader):
         tokenized_string = self.tokenizer.tokenize(sentence)
         input_field = TextField(tokenized_string[1:-1], self.token_indexers)
         forward_output_field = TextField(tokenized_string[2:], self.output_indexer)
-        backward_output_field = TextField(tokenized_string[:-2], self.token_indexers)
+        backward_output_field = TextField(tokenized_string[:-2], self.output_indexer)
         return Instance(
             {
                 "input_tokens": input_field,

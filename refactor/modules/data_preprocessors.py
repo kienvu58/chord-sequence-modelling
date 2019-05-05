@@ -342,7 +342,47 @@ def parse_chord_name_core(chord_name):
     return key, form, figbass
 
 
+def convert_to_note_set_core(chord_name):
+    key, form, figbass = parse_chord_name_core(chord_name)
+    if key is None:
+        return None, None
 
+    key_number = get_key_number(key)
+    note_set = None
+    if figbass is None:     # triad
+        if form is None:    # major
+            note_set = [0, 4, 7]
+        if form == "m":     # minor
+            note_set = [0, 3, 7]
+        if form == "o":     # diminished
+            note_set = [0, 3, 6]
+        if form == "+":     # augmented
+            note_set = [0, 4, 8]
+    if figbass == "7":      # seventh
+        if form is None:    # dominant
+            note_set = [0, 4, 7, 10]
+        if form == "m":     # minor
+            note_set = [0, 3, 7, 10]
+        if form == "M":     # major
+            note_set = [0, 4, 7, 11]
+        if form == "o":     # diminished
+            note_set = [0, 3, 6, 9]
+        if form == "%":     # half-diminished
+            note_set = [0, 3, 6, 10]
+        if form == "+":     # augmented
+            note_set = [0, 4, 8, 11]
+    if figbass == "6":      # sixth
+        if form == "Ger":
+            note_set = [8, 0, 3, 6]
+        if form == "It":
+            note_set = [8, 0, 6]
+        if form == "Fr":
+            note_set = [8, 0, 2, 6]
+    if note_set is None:
+        raise ValueError("Unknown chord:", chord_name)
+
+    return key_number, note_set
+            
 
 def convert_to_note_set(chord_name):
     key, form, figbass = parse_chord_name_core(chord_name)

@@ -19,22 +19,6 @@ from allennlp.training.metrics.metric import Metric
 from allennlp.common.checks import ConfigurationError
 
 
-class SoftmaxLoss(torch.nn.Module):
-    """
-    Given some embeddings and some targets, applies a linear layer
-    to create logits over posible words and then returns the
-    negative log likelihood
-    """
-
-    def __init__(self, num_words: int, embedding_dim: int) -> None:
-        super().__init__()
-        self.softmax = torch.nn.Linear(embedding_dim, num_words)
-
-    def forward(self, embeddings: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        probs = torch.nn.functional.log_softmax(self.softmax(embeddings), dim=-1)
-        return torch.nn.functional.nll_loss(probs, targets.long(), reduction="sum")
-
-
 class Cpm(Model):
     """
     The ``Cpm`` applies a "contextualizing"
@@ -75,6 +59,7 @@ class Cpm(Model):
         text_field_embedder: TextFieldEmbedder,
         contextualizer: Seq2SeqEncoder,
         dropout: float = None,
+        target_transformer: Embedding = None,
     ) -> None:
         super().__init__(vocab)
         self.text_field_embedder = text_field_embedder
@@ -95,6 +80,10 @@ class Cpm(Model):
         self.hidden2chord = torch.nn.Linear(self.forward_dim, vocab.get_vocab_size())
         self.perplexity = Perplexity()
         self.accuracy = CategoricalAccuracy()
+        self.real_loss = Average()
+
+        self.target_transformer = target_transformer
+ 
 
     def delete_softmax(self) -> None:
         """
@@ -119,7 +108,7 @@ class Cpm(Model):
     def loss_helper(
         self, direction_embeddings: torch.Tensor, direction_targets: torch.Tensor
     ):
-        mask = direction_targets > -1
+        mask = direction_targets > 0
         # we need to subtract 1 to undo the padding id since the softmax
         # does not include a padding dimension
 
@@ -139,7 +128,20 @@ class Cpm(Model):
             self.hidden2chord(non_masked_embeddings), dim=-1
         )
 
-        return torch.nn.functional.nll_loss(probs, non_masked_targets, reduction="sum")
+        real_loss = torch.nn.functional.nll_loss(
+            probs, non_masked_targets, reduction="sum"
+        )
+        # transform targets into probability distributions using Embedding
+        # then compute loss using torch.nn.functional.kl_div
+        if self.target_transformer is not None and self.training:
+            target_distributions = self.target_transformer(non_masked_targets)
+            # target_distributions = torch.nn.functional.softmax(target_distributions / self.T, dim=1)
+            train_loss = torch.nn.functional.kl_div(
+                probs, target_distributions, reduction="sum"
+            )
+        else:
+            train_loss = real_loss
+        return train_loss, real_loss
 
     @overrides
     def forward(
@@ -194,11 +196,15 @@ class Cpm(Model):
             backward_targets = backward_output_tokens.get("tokens")
 
         # compute loss
-        forward_loss = self.loss_helper(forward_embeddings, forward_targets)
+        forward_loss, forward_real_loss = self.loss_helper(
+            forward_embeddings, forward_targets
+        )
         if self.bidirectional:
-            backward_loss = self.loss_helper(backward_embeddings, backward_targets)
+            backward_loss, backward_real_loss = self.loss_helper(
+                backward_embeddings, backward_targets
+            )
         else:
-            backward_loss = None
+            backward_loss, backward_real_loss = None, None
 
         return_dict = {}
 
@@ -208,38 +214,25 @@ class Cpm(Model):
                 average_loss = (
                     0.5 * (forward_loss + backward_loss) / num_targets.float()
                 )
+                average_real_loss = (
+                    0.5 * (forward_real_loss + backward_real_loss) / num_targets.float()
+                )
             else:
                 average_loss = forward_loss / num_targets.float()
+                average_real_loss = forward_real_loss / num_targets.float()
         else:
             average_loss = torch.tensor(0.0).to(forward_targets.device)
+            average_real_loss = torch.tensor(0.0).to(forward_targets.device)
 
-        self.perplexity(average_loss)
+        self.perplexity(average_real_loss)
         self.accuracy(forward_logits, forward_targets, mask)
+        self.real_loss(average_real_loss)
 
         if num_targets > 0:
-            return_dict.update(
-                {
-                    "loss": average_loss,
-                    "forward_loss": forward_loss / num_targets.float(),
-                    "backward_loss": (
-                        backward_loss / num_targets.float()
-                        if backward_loss is not None
-                        else None
-                    ),
-                    "batch_weight": num_targets.float(),
-                }
-            )
+            return_dict.update({"loss": average_loss})
         else:
             # average_loss zero tensor, return it for all
-            return_dict.update(
-                {
-                    "loss": average_loss,
-                    "forward_loss": average_loss,
-                    "backward_loss": average_loss
-                    if backward_loss is not None
-                    else None,
-                }
-            )
+            return_dict.update({"loss": average_loss})
 
         return_dict.update(
             {
@@ -258,6 +251,7 @@ class Cpm(Model):
         return {
             "perplexity": self.perplexity.get_metric(reset=reset),
             "accuracy": self.accuracy.get_metric(reset=reset),
+            "real_loss": float(self.real_loss.get_metric(reset=reset)),
         }
 
 

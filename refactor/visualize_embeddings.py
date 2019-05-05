@@ -49,8 +49,7 @@ token_embedding = Embedding(
     num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=EMBEDDING_DIM
 )
 
-with open("saved_models/word2vec.th", "rb") as f:
-    token_embedding.load_state_dict(torch.load(f))
+token_embedding.load_state_dict(torch.load("saved_models/word2vec.th"))
 
 
 token_ids = torch.tensor(

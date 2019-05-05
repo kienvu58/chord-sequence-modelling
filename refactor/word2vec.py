@@ -191,47 +191,6 @@ def get_synonyms(token: str, embedding: Model, vocab: Vocabulary, num_synonyms: 
     return sims.most_common(num_synonyms)
 
 
-def read_simlex999():
-    simlex999 = []
-    with open('data/SimLex-999/SimLex-999.txt') as f:
-        next(f)
-        for line in f:
-            fields = line.strip().split('\t')
-            word1, word2, _, sim = fields[:4]
-            sim = float(sim)
-            simlex999.append((word1, word2, sim))
-
-    return simlex999
-
-
-def evaluate_embeddings(embedding, vocab: Vocabulary):
-    cosine = CosineSimilarity(dim=0)
-
-    simlex999 = read_simlex999()
-    sims_pred = []
-    oov_count = 0
-    for word1, word2, sim in simlex999:
-        word1_id = vocab.get_token_index(word1, 'token_in')
-        if word1_id == 1:
-            sims_pred.append(0.)
-            oov_count += 1
-            continue
-        word2_id = vocab.get_token_index(word2, 'token_in')
-        if word2_id == 1:
-            sims_pred.append(0.)
-            oov_count += 1
-            continue
-
-        sim_pred = cosine(embedding.weight[word1_id],
-                          embedding.weight[word2_id]).item()
-        sims_pred.append(sim_pred)
-
-    assert len(sims_pred) == len(simlex999)
-    print('# of OOV words: {} / {}'.format(oov_count, len(simlex999)))
-
-    return spearmanr(sims_pred, [sim for _, _, sim in simlex999])
-
-
 def main():
     reader = SkipGramReader()
     dataset = reader.read("data/cv/0/train.txt")
@@ -274,64 +233,13 @@ def main():
                       cuda_device=CUDA_DEVICE)
     trainer.train()
 
-    with open("saved_models/word2vec.th", "wb") as f:
-        torch.save(embedding_in.state_dict(), f)
+    torch.save(embedding_in.state_dict(), "saved_models/word2vec.th")
 
     print(get_synonyms('C', embedding_in, vocab))
     print(get_synonyms('G7', embedding_in, vocab))
     print(get_synonyms('G', embedding_in, vocab))
     print(get_synonyms('F', embedding_in, vocab))
     print(get_synonyms('C7', embedding_in, vocab))
-
-def old_main():
-    reader = SkipGramReader()
-    text8 = reader.read('data/text8/text8')
-
-    vocab = Vocabulary.from_instances(text8, min_count={'token_in': 5, 'token_out': 5})
-
-    reader = SkipGramReader(vocab=vocab)
-    text8 = reader.read('data/text8/text8')
-
-    embedding_in = Embedding(num_embeddings=vocab.get_vocab_size('token_in'),
-                             embedding_dim=EMBEDDING_DIM)
-    embedding_out = Embedding(num_embeddings=vocab.get_vocab_size('token_out'),
-                              embedding_dim=EMBEDDING_DIM)
-    if CUDA_DEVICE > -1:
-        embedding_in = embedding_in.to(CUDA_DEVICE)
-        embedding_out = embedding_out.to(CUDA_DEVICE)
-    iterator = BasicIterator(batch_size=BATCH_SIZE)
-    iterator.index_with(vocab)
-
-    # model = SkipGramNegativeSamplingModel(
-    #     vocab=vocab,
-    #     embedding_in=embedding_in,
-    #     embedding_out=embedding_out,
-    #     neg_samples=10,
-    #     cuda_device=CUDA_DEVICE)
-
-    model = SkipGramModel(vocab=vocab,
-                          embedding_in=embedding_in,
-                          cuda_device=CUDA_DEVICE)
-
-    optimizer = optim.Adam(model.parameters())
-
-    trainer = Trainer(model=model,
-                      optimizer=optimizer,
-                      iterator=iterator,
-                      train_dataset=text8,
-                      num_epochs=5,
-                      cuda_device=CUDA_DEVICE)
-    trainer.train()
-
-    # write_embeddings(embedding_in, 'data/text8/embeddings.txt', vocab)
-    print(get_synonyms('one', embedding_in, vocab))
-    print(get_synonyms('december', embedding_in, vocab))
-    print(get_synonyms('flower', embedding_in, vocab))
-    print(get_synonyms('design', embedding_in, vocab))
-    print(get_synonyms('snow', embedding_in, vocab))
-
-    rho = evaluate_embeddings(embedding_in, vocab)
-    print('simlex999 speareman correlation: {}'.format(rho))
 
 
 if __name__ == '__main__':

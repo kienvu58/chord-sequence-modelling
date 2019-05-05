@@ -34,7 +34,7 @@ class Predictor:
             "Ger6",
             "It6",
             "Fr6",
-            "@end@"
+            "@end@",
         ]
         self.key_list = [
             "A",
@@ -58,7 +58,7 @@ class Predictor:
             "G",
             "Gb",
             "G#",
-            "@end@"
+            "@end@",
         ]
         self.init_confusion_matrices()
 

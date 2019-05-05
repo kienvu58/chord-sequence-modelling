@@ -83,7 +83,11 @@ class Cpm(Model):
         self.real_loss = Average()
 
         self.target_transformer = target_transformer
- 
+        self.T = 0.07
+        self.count = 0
+        self.step = 0.0025
+        self.decay_rate = 0.96
+        self.batches_per_epoch = 1011
 
     def delete_softmax(self) -> None:
         """
@@ -135,7 +139,7 @@ class Cpm(Model):
         # then compute loss using torch.nn.functional.kl_div
         if self.target_transformer is not None and self.training:
             target_distributions = self.target_transformer(non_masked_targets)
-            # target_distributions = torch.nn.functional.softmax(target_distributions / self.T, dim=1)
+            target_distributions = torch.nn.functional.softmax(target_distributions / self.T, dim=1)
             train_loss = torch.nn.functional.kl_div(
                 probs, target_distributions, reduction="sum"
             )
@@ -173,6 +177,13 @@ class Cpm(Model):
         ``'mask'``: ``torch.Tensor``
             (batch_size, timesteps) mask for the embeddings
         """
+        self.count += 1
+        if self.count % self.batches_per_epoch == 0:
+            self.T -= self.step
+            self.step *= self.decay_rate
+            if self.T < 1e-8:
+                self.T = 1e-8
+
         mask = get_text_field_mask(input_tokens)
 
         # shape (batch_size, timesteps, embedding_size)

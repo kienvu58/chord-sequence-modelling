@@ -59,7 +59,7 @@ class Cpm(Model):
         text_field_embedder: TextFieldEmbedder,
         contextualizer: Seq2SeqEncoder,
         dropout: float = None,
-        target_transformer: Embedding = None,
+        soft_targets: Embedding = None,
     ) -> None:
         super().__init__(vocab)
         self.text_field_embedder = text_field_embedder
@@ -82,7 +82,7 @@ class Cpm(Model):
         self.accuracy = CategoricalAccuracy()
         self.real_loss = Average()
 
-        self.target_transformer = target_transformer
+        self.soft_targets = soft_targets
         self.T = 0.07
         self.count = 0
         self.step = 0.0025
@@ -137,8 +137,8 @@ class Cpm(Model):
         )
         # transform targets into probability distributions using Embedding
         # then compute loss using torch.nn.functional.kl_div
-        if self.target_transformer is not None and self.training:
-            target_distributions = self.target_transformer(non_masked_targets)
+        if self.soft_targets is not None and self.training:
+            target_distributions = self.soft_targets(non_masked_targets)
             target_distributions = torch.nn.functional.softmax(target_distributions / self.T, dim=1)
             train_loss = torch.nn.functional.kl_div(
                 probs, target_distributions, reduction="sum"

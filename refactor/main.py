@@ -55,7 +55,7 @@ def train(
     contextualizer,
     hparams,
     contextual_embedding_dropout=None,
-    target_transformer=None,
+    soft_targets=None,
     model_saved_path="saved_models/tmp.th",
 ):
     model = Cpm(
@@ -63,7 +63,7 @@ def train(
         word_embedder,
         contextualizer,
         dropout=contextual_embedding_dropout,
-        target_transformer=target_transformer,
+        soft_targets=soft_targets,
     )
     if torch.cuda.is_available():
         cuda_device = 0
@@ -135,7 +135,7 @@ def baseline_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
     print(pred_metrics)
 
 
-def baseline_lstm_with_target_transformer(
+def baseline_lstm_with_soft_targets(
     hparams, token_embedding_dim=128, lstm_hidden_dim=128
 ):
     reader = CpmDatasetReader()
@@ -156,7 +156,7 @@ def baseline_lstm_with_target_transformer(
     )
 
     vocab_size = vocab.get_vocab_size("tokens")
-    target_transformer = Embedding(
+    soft_targets = Embedding(
         num_embeddings=vocab_size,
         embedding_dim=vocab_size,
         weight=torch.load("data/transformer_weight.th"),
@@ -171,8 +171,8 @@ def baseline_lstm_with_target_transformer(
         word_embedder,
         contextualizer,
         hparams,
-        target_transformer=target_transformer,
-        model_saved_path="saved_models/baseline_lstm_{}_{}_with_tt.th".format(
+        soft_targets=soft_targets,
+        model_saved_path="saved_models/baseline_lstm_{}_{}_with_soft_targets.th".format(
             contextual_input_dim, lstm_hidden_dim
         ),
     )
@@ -280,7 +280,7 @@ def note_embedding_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
     print(pred_metrics)
 
 
-def note_embedding_lstm_with_target_transformer(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
+def note_embedding_lstm_with_soft_targets(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
     note_tokenizer = NoteTokenizer()
     note_indexer = TokenCharactersIndexer(
         namespace="notes", min_padding_length=4, character_tokenizer=note_tokenizer
@@ -314,7 +314,7 @@ def note_embedding_lstm_with_target_transformer(hparams, token_embedding_dim=128
     )
 
     vocab_size = vocab.get_vocab_size("tokens")
-    target_transformer = Embedding(
+    soft_targets = Embedding(
         num_embeddings=vocab_size,
         embedding_dim=vocab_size,
         weight=torch.load("data/transformer_weight.th"),
@@ -329,15 +329,15 @@ def note_embedding_lstm_with_target_transformer(hparams, token_embedding_dim=128
         word_embedder,
         contextualizer,
         hparams,
-        target_transformer=target_transformer,
-        model_saved_path="saved_models/note_embedding_lstm_{}_{}_with_tt.th".format(
+        soft_targets=soft_targets,
+        model_saved_path="saved_models/note_embedding_lstm_{}_{}_with_soft_targets.th".format(
             contextual_input_dim, lstm_hidden_dim
         ),
     )
     print(pred_metrics)
 
 
-def character_embedding_lstm_with_target_transformer(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
+def character_embedding_lstm_with_soft_targets(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
     chord_character_tokenizer = ChordCharacterTokenizer()
     token_characters_indexer = TokenCharactersIndexer(
         min_padding_length=3, character_tokenizer=chord_character_tokenizer
@@ -376,7 +376,7 @@ def character_embedding_lstm_with_target_transformer(hparams, token_embedding_di
     )
 
     vocab_size = vocab.get_vocab_size("tokens")
-    target_transformer = Embedding(
+    soft_targets = Embedding(
         num_embeddings=vocab_size,
         embedding_dim=vocab_size,
         weight=torch.load("data/transformer_weight.th"),
@@ -391,8 +391,8 @@ def character_embedding_lstm_with_target_transformer(hparams, token_embedding_di
         word_embedder,
         contextualizer,
         hparams,
-        target_transformer=target_transformer,
-        model_saved_path="saved_models/character_embedding_lstm_{}_{}_with_tt.th".format(
+        soft_targets=soft_targets,
+        model_saved_path="saved_models/character_embedding_lstm_{}_{}_with_soft_targets.th".format(
             contextual_input_dim, lstm_hidden_dim
         ),
     )
@@ -404,7 +404,7 @@ hparams = {"lr": 0.001, "batch_size": 8, "num_epochs": 500}
 # baseline_lstm(hparams)
 # character_embedding_lstm(hparams)
 # note_embedding_lstm(hparams)
-# baseline_lstm_with_target_transformer(hparams)
-# note_embedding_lstm_with_target_transformer(hparams)
-character_embedding_lstm_with_target_transformer(hparams)
+# baseline_lstm_with_soft_targets(hparams)
+# note_embedding_lstm_with_soft_targets(hparams)
+character_embedding_lstm_with_soft_targets(hparams)
 

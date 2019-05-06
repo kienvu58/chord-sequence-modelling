@@ -99,7 +99,7 @@ def examine_note_embedding_models(model_saved_path):
     pred_metrics = predictor.predict(train_dataset)
     predictor.save_confusion_matrices()
 
-def examine_note_embedding_models_with_target_transformer(model_saved_path):
+def examine_note_embedding_models_with_soft_targets(model_saved_path):
     token_embedding_dim = 128
     lstm_hidden_dim = 128
 
@@ -136,14 +136,14 @@ def examine_note_embedding_models_with_target_transformer(model_saved_path):
     )
 
     vocab_size = vocab.get_vocab_size("tokens")
-    target_transformer = Embedding(
+    soft_targets = Embedding(
         num_embeddings=vocab_size,
         embedding_dim=vocab_size,
         weight=torch.load("data/transformer_weight.th"),
         trainable=False
     )
 
-    model = Cpm(vocab, word_embedder, contextualizer, target_transformer=target_transformer)
+    model = Cpm(vocab, word_embedder, contextualizer, soft_targets=soft_targets)
 
     if torch.cuda.is_available():
         cuda_device = 0
@@ -161,7 +161,7 @@ def examine_note_embedding_models_with_target_transformer(model_saved_path):
     pred_metrics = predictor.predict(train_dataset)
     predictor.save_confusion_matrices()
 
-def examine_baseline_models_with_target_transformer(model_saved_path):
+def examine_baseline_models_with_soft_targets(model_saved_path):
     token_embedding_dim = 128
     lstm_hidden_dim = 128
 
@@ -183,14 +183,14 @@ def examine_baseline_models_with_target_transformer(model_saved_path):
     )
 
     vocab_size = vocab.get_vocab_size("tokens")
-    target_transformer = Embedding(
+    soft_targets = Embedding(
         num_embeddings=vocab_size,
         embedding_dim=vocab_size,
         weight=torch.load("data/transformer_weight.th"),
         trainable=False
     )
 
-    model = Cpm(vocab, word_embedder, contextualizer, target_transformer=target_transformer)
+    model = Cpm(vocab, word_embedder, contextualizer, soft_targets=soft_targets)
 
     if torch.cuda.is_available():
         cuda_device = 0
@@ -209,5 +209,5 @@ def examine_baseline_models_with_target_transformer(model_saved_path):
     predictor.save_confusion_matrices()
 
 # examine_note_embedding_models("saved_models/note_embedding_lstm_192_128.th")
-# examine_baseline_models_with_target_transformer("saved_models/baseline_lstm_128_128.th")
-examine_note_embedding_models_with_target_transformer("saved_models/note_embedding_lstm_192_128_with_tt.th")
+# examine_baseline_models_with_soft_targets("saved_models/baseline_lstm_128_128.th")
+examine_note_embedding_models_with_soft_targets("saved_models/note_embedding_lstm_192_128_with_soft_targets.th")

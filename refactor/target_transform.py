@@ -8,7 +8,7 @@ from modules.data_preprocessors import (
     get_key_number,
 )
 
-# match exactly        10 points (key +5, form +1, figbass +1, 2notes +1, 3notes +2, (4notes +2))    total: 10 + 10 + 2
+# match exactly        20 points (key +5, form +1, figbass +1, 2notes +1, 3notes +2, (4notes +2))    total: 20 + 10 + 2
 # match key             5 points
 # match form            1 points
 # match figbass         1 points
@@ -140,7 +140,7 @@ def get_target_distribution(gold_token, vocab):
         )
         weight[index] = score
 
-    weight /= weight.sum()
+    # weight /= weight.sum()
     return weight
 
 
@@ -155,6 +155,39 @@ def create_transformer_weight():
     weight = torch.stack(token_weight_list)
     torch.save(weight, "data/transformer_weight.th")
 
+import matplotlib.pyplot as plt
+import numpy as np
 
-create_transformer_weight()
+def transform():
+    vocab = Vocabulary().from_files("data/vocabulary")
+    token = "A+"
+    token_weight = get_target_distribution(token, vocab)
+    # for i, t in vocab.get_index_to_token_vocabulary().items():
+    #     print(t, token_weight[i].item())
+
+    plt.tick_params(
+        axis="both",
+        left=False,
+        top=False,
+        right=False,
+        bottom=False,
+        labelleft=True,
+        labeltop=False,
+        labelright=False,
+        labelbottom=False,
+    )
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(True)
+    x_pos = np.arange(vocab.get_vocab_size()) 
+    plt.bar(x_pos, token_weight.numpy(), width=1.0)
+    plt.show()
+
+
+# create_transformer_weight()
+transform()
+
+
 

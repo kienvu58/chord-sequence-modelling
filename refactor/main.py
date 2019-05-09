@@ -201,7 +201,7 @@ def character_embedding_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=1
     )
     character_tokens_embedding = Embedding(vocab.get_vocab_size("token_characters"), 64)
     chracters_encoder = CnnEncoder(
-        num_filters=16, ngram_filter_sizes=(2, 3, 4), embedding_dim=64, output_dim=64
+        num_filters=16, ngram_filter_sizes=(2, 3), embedding_dim=64, output_dim=64
     )
     characters_embedding = TokenCharactersEncoder(
         character_tokens_embedding, chracters_encoder
@@ -403,8 +403,8 @@ def character_embedding_lstm_with_soft_targets(hparams, token_embedding_dim=128,
 hparams = {"lr": 0.001, "batch_size": 8, "num_epochs": 500}
 # baseline_lstm(hparams)
 # character_embedding_lstm(hparams)
-# note_embedding_lstm(hparams)
+note_embedding_lstm(hparams)
 # baseline_lstm_with_soft_targets(hparams)
 # note_embedding_lstm_with_soft_targets(hparams)
-character_embedding_lstm_with_soft_targets(hparams)
+# character_embedding_lstm_with_soft_targets(hparams)
 

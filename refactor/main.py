@@ -2,6 +2,10 @@ import torch
 import torch.optim as optim
 import numpy as np
 import shutil
+import itertools
+import json
+import time
+import math
 
 from modules.tokenizers import ChordCharacterTokenizer, NoteTokenizer
 from modules.dataset_readers import CpmDatasetReader
@@ -41,47 +45,144 @@ import logging
 import sys
 import os
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.ERROR)
 
 torch.manual_seed(1)
 
+target_weight = "data/transformer_weight.th"
 
-def train(
-    train_dataset,
-    val_dataset,
-    test_dataset,
-    vocab,
-    word_embedder,
-    contextualizer,
-    hparams,
-    contextual_embedding_dropout=None,
-    soft_targets=None,
-    model_saved_path="saved_models/tmp.th",
+
+def run_experiment(
+    use_soft_targets, soft_target_path, embedding_type, rnn_type, hparams
 ):
-    model = Cpm(
-        vocab,
-        word_embedder,
-        contextualizer,
-        dropout=contextual_embedding_dropout,
-        soft_targets=soft_targets,
+    log = {}
+    log["name"] = "{} {} {}".format(
+        rnn_type, embedding_type, "soft_target" if use_soft_targets else "hard_target"
     )
-    if torch.cuda.is_available():
-        cuda_device = 0
-        model = model.cuda(cuda_device)
-    else:
-        cuda_device = -1
-    print(cuda_device)
+    log["soft_target"] = soft_target_path if use_soft_targets else None
 
-    optimizer = optim.Adam(model.parameters(), lr=hparams["lr"])
+    vocab = Vocabulary().from_files(hparams["vocab_path"])
+    if embedding_type == "Chord":
+        # data reader
+        reader = CpmDatasetReader()
+
+        # chord embedder
+        token_embedding = Embedding(
+            num_embeddings=vocab.get_vocab_size("tokens"),
+            embedding_dim=hparams["chord_token_embedding_dim"],
+        )
+        chord_embedder = BasicTextFieldEmbedder({"tokens": token_embedding})
+
+    elif embedding_type == "Note":
+        # data reader
+        note_tokenizer = NoteTokenizer()
+        note_indexer = TokenCharactersIndexer(
+            namespace="notes", min_padding_length=4, character_tokenizer=note_tokenizer
+        )
+        reader = CpmDatasetReader(
+            token_indexers={"tokens": SingleIdTokenIndexer(), "notes": note_indexer}
+        )
+
+        # chord embedder
+        token_embedding = Embedding(
+            num_embeddings=vocab.get_vocab_size("tokens"),
+            embedding_dim=hparams["chord_token_embedding_dim"],
+        )
+        note_token_embedding = Embedding(
+            vocab.get_vocab_size("notes"), hparams["note_embedding_dim"]
+        )
+        note_encoder = CnnEncoder(
+            num_filters=hparams["cnn_encoder_num_filters"],
+            ngram_filter_sizes=hparams["cnn_encoder_n_gram_filter_sizes"],
+            embedding_dim=hparams["note_embedding_dim"],
+            output_dim=hparams["note_level_embedding_dim"],
+        )
+        note_embedding = TokenCharactersEncoder(note_token_embedding, note_encoder)
+        chord_embedder = BasicTextFieldEmbedder(
+            {"tokens": token_embedding, "notes": note_embedding}
+        )
+    else:
+        raise ValueError("Unknown embedding type:", embedding_type)
+
+    # read data
+    train_dataset = reader.read(os.path.join(hparams["data_path"], "train.txt"))
+    val_dataset = reader.read(os.path.join(hparams["data_path"], "val.txt"))
+    test_dataset = reader.read(os.path.join(hparams["data_path"], "test.txt"))
+
+    # contextualizer
+    contextual_input_dim = chord_embedder.get_output_dim()
+    if rnn_type == "RNN":
+        contextualizer = PytorchSeq2SeqWrapper(
+            torch.nn.RNN(
+                contextual_input_dim,
+                hparams["rnn_hidden_dim"],
+                batch_first=True,
+                bidirectional=False,
+            )
+        )
+    elif rnn_type == "LSTM":
+        contextualizer = PytorchSeq2SeqWrapper(
+            torch.nn.LSTM(
+                contextual_input_dim,
+                hparams["lstm_hidden_dim"],
+                batch_first=True,
+                bidirectional=False,
+            )
+        )
+    elif rnn_type == "GRU":
+        contextualizer = PytorchSeq2SeqWrapper(
+            torch.nn.GRU(
+                contextual_input_dim,
+                hparams["gru_hidden_dim"],
+                batch_first=True,
+                bidirectional=False,
+            )
+        )
+    else:
+        raise ValueError("Unknown rnn type:", rnn_type)
+
+    if use_soft_targets:
+        vocab_size = vocab.get_vocab_size("tokens")
+        soft_targets = Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=vocab_size,
+            weight=torch.load(soft_target_path),
+            trainable=False,
+        )
+    else:
+        soft_targets = None
 
     iterator = BucketIterator(
         batch_size=hparams["batch_size"], sorting_keys=[("input_tokens", "num_tokens")]
     )
     iterator.index_with(vocab)
 
-    serialization_dir = "saved_models/checkpoints"
-    if os.path.isdir(serialization_dir):
-        shutil.rmtree(serialization_dir)
+    batches_per_epoch = math.ceil(len(train_dataset) / hparams["batch_size"])
+
+    model_hparams = {
+        "dropout": None,
+        "soft_targets": soft_targets,
+        "T_initial": hparams["T_initial"],
+        "decay_rate": hparams["decay_rate"],
+        "batches_per_epoch": batches_per_epoch,
+    }
+    # chord progression model
+    model = Cpm(vocab, chord_embedder, contextualizer, model_hparams)
+
+    if torch.cuda.is_available():
+        cuda_device = 0
+        model = model.cuda(cuda_device)
+        print("GPU available.")
+    else:
+        cuda_device = -1
+
+    optimizer = optim.Adam(model.parameters(), lr=hparams["lr"])
+
+    ts = time.gmtime()
+    saved_model_path = os.path.join(
+        hparams["saved_model_path"], time.strftime("%Y-%m-%d %H-%M-%S", ts)
+    )
+    serialization_dir = os.path.join(saved_model_path, "checkpoints")
 
     trainer = Trainer(
         model=model,
@@ -90,321 +191,68 @@ def train(
         train_dataset=train_dataset,
         validation_dataset=val_dataset,
         serialization_dir=serialization_dir,
-        patience=10,
+        patience=hparams["patience"],
         num_epochs=hparams["num_epochs"],
         cuda_device=cuda_device,
     )
     trainer.train()
-    torch.save(model.state_dict(), model_saved_path)
+    saved_model_path = os.path.join(saved_model_path, "{}.th".format(log["name"]))
+    torch.save(model.state_dict(), saved_model_path)
 
     predictor = Predictor(model=model, iterator=iterator, cuda_device=cuda_device)
     pred_metrics = predictor.predict(test_dataset)
-    return pred_metrics
+    log["metrics"] = pred_metrics
+    log["saved_mode_path"] = saved_model_path
+
+    return log
 
 
-def baseline_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
-    reader = CpmDatasetReader()
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
+def main():
+    data_path = "data/cv/0/"
+    vocab_path = "data/vocabulary/"
+    saved_model_path = "saved_models/"
+    hparams = {
+        "lr": 0.001,
+        "batch_size": 8,
+        "num_epochs": 200,
+        "patience": 20,
+        "rnn_hidden_dim": 128,
+        "lstm_hidden_dim": 128,
+        "gru_hidden_dim": 128,
+        "chord_token_embedding_dim": 128,
+        "note_embedding_dim": 64,
+        "note_level_embedding_dim": 64,
+        "cnn_encoder_num_filters": 16,
+        "cnn_encoder_n_gram_filter_sizes": (2, 3, 4),
+        "soft_target_path": soft_target_path,
+        "T_initial": 5,
+        "decay_rate": 0.01,
+        "data_path": data_path,
+        "vocab_path": vocab_path,
+        "saved_model_path": saved_model_path,
+    }
 
-    vocab = Vocabulary().from_files("data/vocabulary")
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    word_embedder = BasicTextFieldEmbedder({"tokens": token_embedding})
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
+    embedding_type_list = ["Chord", "Note"]
+    rnn_type_list = ["RNN", "LSTM", "GRU"]
+    soft_target_path_list = ["data/targetes/target_533313.th"]
+    use_soft_targets = False
+
+    result = {}
+    result["experiments"] = []
+    for embedding_type, rnn_type, soft_target_path in itertools.product(
+        embedding_type_list, rnn_type_list, soft_target_path_list
+    ):
+        log = run_experiment(
+            use_soft_targets, soft_target_path, embedding_type, rnn_type, hparams
         )
-    )
+        result["experiments"].append(log)
+    result["hparams"] = hparams
+    ts = time.gmtime()
+    result_fn = "{}.json".format(time.strftime("%Y-%m-%d %H-%M-%S", ts))
 
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        model_saved_path="saved_models/baseline_lstm_{}_{}.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
+    with open(os.path.join("logs", result_fn), "w") as f:
+        json.dump(result, f, indent=4)
 
 
-def baseline_lstm_with_soft_targets(
-    hparams, token_embedding_dim=128, lstm_hidden_dim=128
-):
-    reader = CpmDatasetReader()
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
-
-    vocab = Vocabulary().from_files("data/vocabulary")
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    word_embedder = BasicTextFieldEmbedder({"tokens": token_embedding})
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
-        )
-    )
-
-    vocab_size = vocab.get_vocab_size("tokens")
-    soft_targets = Embedding(
-        num_embeddings=vocab_size,
-        embedding_dim=vocab_size,
-        weight=torch.load("data/transformer_weight.th"),
-        trainable=False
-    )
-
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        soft_targets=soft_targets,
-        model_saved_path="saved_models/baseline_lstm_{}_{}_with_soft_targets.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
-
-
-def character_embedding_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
-    chord_character_tokenizer = ChordCharacterTokenizer()
-    token_characters_indexer = TokenCharactersIndexer(
-        min_padding_length=3, character_tokenizer=chord_character_tokenizer
-    )
-    reader = CpmDatasetReader(
-        token_indexers={
-            "tokens": SingleIdTokenIndexer(),
-            "token_characters": token_characters_indexer,
-        }
-    )
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
-
-    vocab = Vocabulary().from_files("data/vocabulary")
-
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    character_tokens_embedding = Embedding(vocab.get_vocab_size("token_characters"), 64)
-    chracters_encoder = CnnEncoder(
-        num_filters=16, ngram_filter_sizes=(2, 3), embedding_dim=64, output_dim=64
-    )
-    characters_embedding = TokenCharactersEncoder(
-        character_tokens_embedding, chracters_encoder
-    )
-    word_embedder = BasicTextFieldEmbedder(
-        {"tokens": token_embedding, "token_characters": characters_embedding}
-    )
-
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
-        )
-    )
-
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        model_saved_path="saved_models/character_embedding_lstm_{}_{}.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
-
-
-def note_embedding_lstm(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
-    note_tokenizer = NoteTokenizer()
-    note_indexer = TokenCharactersIndexer(
-        namespace="notes", min_padding_length=4, character_tokenizer=note_tokenizer
-    )
-    reader = CpmDatasetReader(
-        token_indexers={"tokens": SingleIdTokenIndexer(), "notes": note_indexer}
-    )
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
-
-    vocab = Vocabulary().from_files("data/vocabulary")
-
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    note_token_embedding = Embedding(vocab.get_vocab_size("notes"), 64)
-    note_encoder = CnnEncoder(
-        num_filters=16, ngram_filter_sizes=(2, 3, 4), embedding_dim=64, output_dim=64
-    )
-    note_embedding = TokenCharactersEncoder(note_token_embedding, note_encoder)
-    word_embedder = BasicTextFieldEmbedder(
-        {"tokens": token_embedding, "notes": note_embedding}
-    )
-
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
-        )
-    )
-
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        model_saved_path="saved_models/note_embedding_lstm_{}_{}.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
-
-
-def note_embedding_lstm_with_soft_targets(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
-    note_tokenizer = NoteTokenizer()
-    note_indexer = TokenCharactersIndexer(
-        namespace="notes", min_padding_length=4, character_tokenizer=note_tokenizer
-    )
-    reader = CpmDatasetReader(
-        token_indexers={"tokens": SingleIdTokenIndexer(), "notes": note_indexer}
-    )
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
-
-    vocab = Vocabulary().from_files("data/vocabulary")
-
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    note_token_embedding = Embedding(vocab.get_vocab_size("notes"), 64)
-    note_encoder = CnnEncoder(
-        num_filters=16, ngram_filter_sizes=(2, 3, 4), embedding_dim=64, output_dim=64
-    )
-    note_embedding = TokenCharactersEncoder(note_token_embedding, note_encoder)
-    word_embedder = BasicTextFieldEmbedder(
-        {"tokens": token_embedding, "notes": note_embedding}
-    )
-
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
-        )
-    )
-
-    vocab_size = vocab.get_vocab_size("tokens")
-    soft_targets = Embedding(
-        num_embeddings=vocab_size,
-        embedding_dim=vocab_size,
-        weight=torch.load("data/transformer_weight.th"),
-        trainable=False
-    )
-
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        soft_targets=soft_targets,
-        model_saved_path="saved_models/note_embedding_lstm_{}_{}_with_soft_targets.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
-
-
-def character_embedding_lstm_with_soft_targets(hparams, token_embedding_dim=128, lstm_hidden_dim=128):
-    chord_character_tokenizer = ChordCharacterTokenizer()
-    token_characters_indexer = TokenCharactersIndexer(
-        min_padding_length=3, character_tokenizer=chord_character_tokenizer
-    )
-    reader = CpmDatasetReader(
-        token_indexers={
-            "tokens": SingleIdTokenIndexer(),
-            "token_characters": token_characters_indexer,
-        }
-    )
-    train_dataset = reader.read("data/cv/0/train.txt")
-    val_dataset = reader.read("data/cv/0/val.txt")
-    test_dataset = reader.read("data/cv/0/test.txt")
-
-    vocab = Vocabulary().from_files("data/vocabulary")
-
-    token_embedding = Embedding(
-        num_embeddings=vocab.get_vocab_size("tokens"), embedding_dim=token_embedding_dim
-    )
-    character_tokens_embedding = Embedding(vocab.get_vocab_size("token_characters"), 64)
-    chracters_encoder = CnnEncoder(
-        num_filters=16, ngram_filter_sizes=(2, 3), embedding_dim=64, output_dim=64
-    )
-    characters_embedding = TokenCharactersEncoder(
-        character_tokens_embedding, chracters_encoder
-    )
-    word_embedder = BasicTextFieldEmbedder(
-        {"tokens": token_embedding, "token_characters": characters_embedding}
-    )
-
-    contextual_input_dim = word_embedder.get_output_dim()
-    contextualizer = PytorchSeq2SeqWrapper(
-        torch.nn.LSTM(
-            contextual_input_dim, lstm_hidden_dim, batch_first=True, bidirectional=False
-        )
-    )
-
-    vocab_size = vocab.get_vocab_size("tokens")
-    soft_targets = Embedding(
-        num_embeddings=vocab_size,
-        embedding_dim=vocab_size,
-        weight=torch.load("data/transformer_weight.th"),
-        trainable=False
-    )
-
-    pred_metrics = train(
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        vocab,
-        word_embedder,
-        contextualizer,
-        hparams,
-        soft_targets=soft_targets,
-        model_saved_path="saved_models/character_embedding_lstm_{}_{}_with_soft_targets.th".format(
-            contextual_input_dim, lstm_hidden_dim
-        ),
-    )
-    print(pred_metrics)
-
-
-
-hparams = {"lr": 0.001, "batch_size": 8, "num_epochs": 500}
-# baseline_lstm(hparams)
-# character_embedding_lstm(hparams)
-note_embedding_lstm(hparams)
-# baseline_lstm_with_soft_targets(hparams)
-# note_embedding_lstm_with_soft_targets(hparams)
-# character_embedding_lstm_with_soft_targets(hparams)
-
+if __name__ == "__main__":
+    main()

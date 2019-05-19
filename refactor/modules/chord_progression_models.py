@@ -58,8 +58,7 @@ class Cpm(Model):
         vocab: Vocabulary,
         text_field_embedder: TextFieldEmbedder,
         contextualizer: Seq2SeqEncoder,
-        dropout: float = None,
-        soft_targets: Embedding = None,
+        hparams: Dict,
     ) -> None:
         super().__init__(vocab)
         self.text_field_embedder = text_field_embedder
@@ -72,22 +71,25 @@ class Cpm(Model):
         else:
             self.forward_dim = contextualizer.get_output_dim()
 
+        dropout = hparams["dropout"]
         if dropout:
             self.dropout = torch.nn.Dropout(dropout)
         else:
             self.dropout = lambda x: x
 
-        self.hidden2chord = torch.nn.Linear(self.forward_dim, vocab.get_vocab_size())
+        self.hidden2chord = torch.nn.Linear(
+            self.forward_dim, vocab.get_vocab_size())
         self.perplexity = Perplexity()
         self.accuracy = CategoricalAccuracy()
         self.real_loss = Average()
 
-        self.soft_targets = soft_targets
-        self.T = 0.07
-        self.count = 0
-        self.step = 0.0025
-        self.decay_rate = 0.96
-        self.batches_per_epoch = 1011
+        self.soft_targets = hparams["soft_targets"]
+        self.T_initial = hparams["T_initial"]
+        self.decay_rate = hparams["decay_rate"]
+        self.batches_per_epoch = hparams["batches_per_epoch"]
+        self.epoch = 0
+        self.batch_counter = 0
+        self.T = self.T_initial
 
     def delete_softmax(self) -> None:
         """
@@ -139,7 +141,8 @@ class Cpm(Model):
         # then compute loss using torch.nn.functional.kl_div
         if self.soft_targets is not None and self.training:
             target_distributions = self.soft_targets(non_masked_targets)
-            target_distributions = torch.nn.functional.softmax(target_distributions / self.T, dim=1)
+            target_distributions = torch.nn.functional.softmax(
+                target_distributions / self.T, dim=1)
             train_loss = torch.nn.functional.kl_div(
                 probs, target_distributions, reduction="sum"
             )
@@ -177,12 +180,12 @@ class Cpm(Model):
         ``'mask'``: ``torch.Tensor``
             (batch_size, timesteps) mask for the embeddings
         """
-        self.count += 1
-        if self.count % self.batches_per_epoch == 0:
-            self.T -= self.step
-            self.step *= self.decay_rate
-            if self.T < 1e-8:
-                self.T = 1e-8
+        self.batch_counter += 1
+        if self.batch_counter % self.batches_per_epoch == 0:
+            self.epoch += 1
+            self.T = self.T_initial * np.exp(-self.decay_rate*self.epoch)
+            if self.T < 1e-20:
+                self.T = 1e-20
 
         mask = get_text_field_mask(input_tokens)
 
@@ -190,7 +193,8 @@ class Cpm(Model):
         embeddings = self.text_field_embedder(input_tokens)
 
         contextual_embeddings = self.contextualizer(embeddings, mask)
-        contextual_embeddings_with_dropout = self.dropout(contextual_embeddings)
+        contextual_embeddings_with_dropout = self.dropout(
+            contextual_embeddings)
 
         if self.bidirectional:
             forward_embeddings, backward_embeddings = contextual_embeddings_with_dropout.chunk(
@@ -226,7 +230,8 @@ class Cpm(Model):
                     0.5 * (forward_loss + backward_loss) / num_targets.float()
                 )
                 average_real_loss = (
-                    0.5 * (forward_real_loss + backward_real_loss) / num_targets.float()
+                    0.5 * (forward_real_loss + backward_real_loss) /
+                    num_targets.float()
                 )
             else:
                 average_loss = forward_loss / num_targets.float()
@@ -239,11 +244,7 @@ class Cpm(Model):
         self.accuracy(forward_logits, forward_targets, mask)
         self.real_loss(average_real_loss)
 
-        if num_targets > 0:
-            return_dict.update({"loss": average_loss})
-        else:
-            # average_loss zero tensor, return it for all
-            return_dict.update({"loss": average_loss})
+        return_dict.update({"loss": average_loss})
 
         return_dict.update(
             {
